@@ -38,7 +38,7 @@ python -m cognitive_memory.cli migrate-amem --jsonl path/to/export.jsonl
 | `dsh plugin add` 后零配置能起（或 README 配置真生效） | ⏳ 仓库已内含 `service/`；装进 profile 后仍须验证目录是否完整拷贝 |
 | 真实对话：`observe` → 下一轮自动 `context`，并有延迟/准确率 | ❌ 未验收 |
 | 备份 / 导出 / 旧记忆迁移有可执行答案 | ✅ CLI 有；日常习惯与文档仍须跟上 |
-| 最小 CI（插件 + 服务 + 一次端到端） | ⏳ 模板在 `ci/github-actions.ci.yml`（需有 `workflow` scope 的 token 才能写入 `.github/workflows`）；端到端对话闭环未进 CI |
+| 最小 CI（插件 + 服务 + 一次端到端） | ⏳ 插件 + 服务单测已在 `.github/workflows/ci.yml`（`plugin/dsh` / `main` 绿）；端到端对话闭环仍未进 CI |
 | 连续一周无丢数据 / 串记忆 | ❌ 未跑 |
 
 **一句话：** 现在值得用、值得每天用；证明不会把经历弄丢或弄错之前，先当副记忆。
