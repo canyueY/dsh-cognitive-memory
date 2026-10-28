@@ -115,6 +115,9 @@ export class MemoryProcessHost {
       this.token = Buffer.from(cryptoGetRandom()).toString('base64url');
     }
     fs.mkdirSync(path.join(this.dataDir, 'runtime'), { recursive: true });
+    // A previous DSH process may have left a service.json pointing at a dead
+    // port. Drop it before spawning, otherwise the poll below adopts it.
+    try { fs.rmSync(this.serviceJsonPath(), { force: true }); } catch { /* ignore */ }
 
     const env = {
       ...process.env,
@@ -173,10 +176,25 @@ export class MemoryProcessHost {
       this.stop();
       throw new Error('cognitive-memory subprocess failed to become ready');
     }
-    // health check
+    // health check (the port may be bound before the app is ready)
     const { MemoryClient } = await import('./memory-client.js');
     const client = new MemoryClient({ baseUrl: this.baseUrl, token: this.token });
-    await client.health();
+    let healthy = false;
+    let lastErr = null;
+    for (let i = 0; i < 20; i += 1) {
+      try {
+        await client.health();
+        healthy = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        await sleep(100);
+      }
+    }
+    if (!healthy) {
+      this.stop();
+      throw new Error(`cognitive-memory health check failed: ${lastErr?.message || 'unknown'}`);
+    }
     return this.info();
   }
 
