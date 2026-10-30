@@ -2,9 +2,9 @@
 
 > **权威仓：** [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne) · **非标尺：** [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)（见 [REPO_BASELINE](REPO_BASELINE.md)）
 
-**状态：** Partial Evidence（2026-10-31）— 可跑套件；**不等于**正式收纳全体用户  
+**状态：** Partial Evidence（2026-10-31）— 最小面可声明就绪；**不等于**正式收纳全体用户  
 **套件：** `scripts/mnemosyne_readiness_suite.py` → `tmp/mnemosyne_readiness_report.json`  
-**上位：** [IMPLEMENTATION_PLAN §8](MNEMOSYNE_2.0_IMPLEMENTATION_PLAN.md) · [CAPABILITY_MATRIX](MNEMOSYNE_2.0_CAPABILITY_MATRIX.md) · [YELLOW_BACKLOG](YELLOW_BACKLOG.md)
+**上位：** [GA_STATUS](GA_STATUS.md) · [CAPABILITY_MATRIX](MNEMOSYNE_2.0_CAPABILITY_MATRIX.md) · [YELLOW_BACKLOG](YELLOW_BACKLOG.md) · [REPO_BASELINE](REPO_BASELINE.md)
 
 ---
 
@@ -13,8 +13,8 @@
 | Gate | 必要性 | 现状 | 证据 |
 | --- | --- | --- | --- |
 | G1 Node Independence | 必须 | ✅ | `mnemosyne doctor/health`；套件 health |
-| G2 Storage Safety | 必须 | ✅ 证据 | 合成库 `e1.2-…json`；现网 V8 `docs/reports/v8-production-backup-signoff.json`（57k memories 备份恢复一致；未覆盖现网） |
-| G3 Cognitive Core | 必须 | ✅ | Observation→Memory；黄金样本；套件 G3 |
+| G2 Storage Safety | 必须 | ✅ 证据 | 合成/fixture；现网 V8 脚本齐；**人工双签见** [HUMAN_SIGNOFF_CHECKLIST](reports/HUMAN_SIGNOFF_CHECKLIST.md)（Y3 待人工） |
+| G3 Cognitive Core | 必须 | ✅ | Observation→Memory；情绪/反馈/Bank E2E（Y4）；套件 G3 |
 | G4 Interoperability | 必须 | Partial→增强 | Python+TS SDK；CRUD Agent 执法；SSE；standalone + DSH 薄化 E2E；[API_SPEC](MNEMOSYNE_API_SPEC.md) |
 | G5 Component Management | 必须 | Partial | 本地 Component Manager；无市场（裁切） |
 | G6 Governance | 必须 | ✅ 增强 | grants + CRUD + policy(store/forward/train/retention)；硬删闸；MCP 写确认 |
@@ -47,10 +47,12 @@
 
 ---
 
-## 复现命令
+## 复现命令（本仓库根）
 
-```bash
-set PYTHONPATH=services/cognitive-memory/src
-py -3 scripts/mnemosyne_readiness_suite.py
-py -3 -m pytest services/cognitive-memory/tests/unit/test_agent_grants.py -q
+```bat
+set PYTHONPATH=src
+py -3 scripts\mnemosyne_readiness_suite.py
+py -3 -m pytest tests -q
 ```
+
+人工试点（不代签）：[reports/HUMAN_SIGNOFF_CHECKLIST.md](reports/HUMAN_SIGNOFF_CHECKLIST.md) · [reports/e6.5-pilot-status.md](reports/e6.5-pilot-status.md)

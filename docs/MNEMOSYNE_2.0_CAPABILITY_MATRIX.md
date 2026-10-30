@@ -44,7 +44,7 @@
 | D7 Governance & Operations | ~65% | Partial→增强 | grants+CRUD+硬删闸+policy 执法测试；隐私产品化仍可厚 |
 | **D8 Distribution & Composition** | ~55% | Partial | 本地 Manifest/Installer/Lifecycle；**市场/远程 Missing=预期** |
 
-**结论：** 2.0 最小骨架已闭合；剩余是厚度、人工试点签字与明确裁切项。  
+**结论：** 2.0 最小面已闭合（见 [GA_STATUS](GA_STATUS.md)）；剩余是 Y3 人工签字、可选 Y5、全量 Adoption（Y6）与 2.1+ 联邦，**不是**从零重做 Identity/Bank/CLI。  
 **禁止**把 DSH 社区插件进度记成 Mnemosyne Component 进度。  
 **不得**将全量用户收纳或跨 Node 联邦标为已完成。
 

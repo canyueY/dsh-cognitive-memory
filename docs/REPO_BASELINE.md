@@ -58,9 +58,9 @@
 | --- | --- | --- |
 | Y1 | G8 仓库叙事统一 | 本文件 + Legacy Banner |
 | Y2 | G9 文档索引 | README/Matrix/READINESS 互链权威仓 |
-| Y3 | E6.5 / V8 人工签字 | 技术报告有；操作人/复核人栏待填 |
-| Y4 | D3 闭环验收加厚 | 情绪/学习与 Bank 全打通属厚度，非从零 |
-| Y5 | 组件硬沙箱 / 远程 Registry | 市场裁切；沙箱可后续加测 |
+| Y3 | E6.5 / V8 人工签字 | 模板/清单已齐；**操作人/复核人栏待填** |
+| Y4 | D3 闭环验收加厚 | **完成**：情绪 shadow→Bank 隔离→feedback promote E2E |
+| Y5 | 组件硬沙箱 / 远程 Registry | 市场裁切；禁直连 sqlite 契约可再扩包（可选） |
 | Y6 | 全量用户收纳 | ≠ E6.5 小规模试点 |
 
 **已完成最小面、禁止重做：** Node CLI、Identity、Memory Bank、Authority、Agent grants、本地 D8、Staging/Cutover、Python+TS SDK、policy 执法基础。

@@ -48,6 +48,33 @@ class StorageProviderBoundaryTests(unittest.TestCase):
 
     def test_adapters_package_no_direct_sqlite(self) -> None:
         root = Path(__file__).resolve().parents[2] / "src" / "cognitive_memory" / "adapters"
+        self.assertEqual(self._sqlite_import_offenders(root), [])
+
+    def test_mcp_package_no_direct_sqlite(self) -> None:
+        """Y5 可选加厚：MCP 面也不应直连 sqlite / Database。"""
+        root = Path(__file__).resolve().parents[2] / "src" / "cognitive_memory" / "mcp"
+        if not root.is_dir():
+            self.skipTest("mcp package absent")
+        offenders = self._sqlite_connect_offenders(root) + self._sqlite_import_offenders(root)
+        self.assertEqual(offenders, [], f"mcp must not open sqlite directly: {offenders}")
+
+    @staticmethod
+    def _sqlite_connect_offenders(root: Path) -> list[str]:
+        offenders: list[str] = []
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    func = node.func
+                    if isinstance(func, ast.Attribute) and func.attr == "connect":
+                        if isinstance(func.value, ast.Name) and func.value.id == "sqlite3":
+                            offenders.append(str(path.relative_to(root.parent)))
+                    if isinstance(func, ast.Name) and func.id == "Database":
+                        offenders.append(f"{path.name}:Database()")
+        return offenders
+
+    @staticmethod
+    def _sqlite_import_offenders(root: Path) -> list[str]:
         offenders: list[str] = []
         for path in root.rglob("*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -60,7 +87,7 @@ class StorageProviderBoundaryTests(unittest.TestCase):
                     mod = node.module or ""
                     if mod == "sqlite3" or mod.startswith("cognitive_memory.storage.db"):
                         offenders.append(f"{path.name}:{mod}")
-        self.assertEqual(offenders, [])
+        return offenders
 
 
 if __name__ == "__main__":

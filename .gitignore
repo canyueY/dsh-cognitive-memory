@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+pytest-of-*/
 .mypy_cache/
 .venv/
 venv/
@@ -23,3 +24,5 @@ tmp/
 Thumbs.db
 COMMIT_MSG.txt
 _pr_body*.md
+
+docs/reports/*.pending.json
