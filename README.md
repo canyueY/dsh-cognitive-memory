@@ -55,7 +55,7 @@ curl -H "Authorization: Bearer %DSH_MEMORY_TOKEN%" http://127.0.0.1:8765/api/v1/
   "cognitive_memory": {
     "enable": true,
     "auto_start": true,
-    "service_root": "D:/HuaweiMoveData/Users/残月Y/Desktop/mnemosyne",
+    "service_root": "D:/HuaweiMoveData/Users/残月Y/Desktop/桌宠/mnemosyne",
     "base_url": "http://127.0.0.1:8765",
     "token": "与 DSH_MEMORY_TOKEN 一致",
     "data_dir": ""

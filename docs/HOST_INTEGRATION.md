@@ -22,7 +22,7 @@
 
 1. 环境变量 `MNEMOSYNE_HOME`  
 2. 配置 `service_root`（绝对路径或相对桌宠根）  
-3. 同级目录 `../mnemosyne`（若存在）  
+3. 同级目录 `mnemosyne`（若存在）  
 4. 旧路径 `services/cognitive-memory`（过渡回退）
 
 ## 外部 Agent
