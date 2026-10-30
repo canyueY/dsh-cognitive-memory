@@ -25,5 +25,8 @@
 | Y5 | G5 | 组件「禁直连 sqlite」已有契约测；可选扩到更多包 | `test_storage_provider_boundary`（components+adapters+mcp） | 可选 |
 | Y6 | G7 | 全量 Adoption ≠ E6.5 | 另开里程碑 | 裁切/另开 |
 | Y7 | G4 | 裸 `/v1` 别名 | **不做**；文档已标明 `/api/v1` | 关闭 |
+| Y8 | G3/P0 | 图式演化：同化/顺应/冲突/版本历史 | `cognition/schema_evolution.py`；4 项经验闭环测试 | **完成（服务层）** |
+| Y9 | G3/P1 | 反馈学习：用户/结果/自评分开 | `cognition/feedback_learning.py`；不冒充用户同意 | **完成（服务层）** |
+| Y10 | G4/P2 | 可选语义空间：n-gram/可注入 embedding | `retrieval/semantic.py`；只加分不压主排序 | **完成（服务层）** |
 
 更新本表时：只改状态，不把 Missing 能力误写成需重做的绿项。

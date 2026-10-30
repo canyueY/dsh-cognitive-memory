@@ -9,6 +9,9 @@
 
 本仓库从桌宠 monorepo 的 `services/cognitive-memory` **拆出**，与宿主（大肥鱼 / DSH / 其他 Agent）**地址分离、配置独立**，通过 HTTP / SDK / MCP 接入。
 
+> **经验闭环：** 记忆不是越积越多，而是让新经验改善下一次检索与行动。  
+> 图式演化（同化/顺应/冲突）、反馈学习（用户/结果/自评）与可选语义空间见 [`docs/MNEMOSYNE_EXPERIENCE_LOOP.md`](docs/MNEMOSYNE_EXPERIENCE_LOOP.md)。
+
 | | |
 | --- | --- |
 | GitHub | https://github.com/canyueY/mnemosyne |
