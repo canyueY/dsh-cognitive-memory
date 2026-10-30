@@ -14,6 +14,14 @@ Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
 > **不是 2.0 标尺：** npm / GitHub 旧壳 [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)。  
 > 基线、GA 与完整文档见 [`docs/REPO_BASELINE.md`](docs/REPO_BASELINE.md)。
 
+> **关键边界：一个 Node 一个 Memory Bank；`mnemosyne-memory-bank` 不是第二套记忆库。**
+>
+> - `mnemosyne`：代码、Node、Core，负责运行和认知。
+> - `Mnemosyne Memory Bank`：Node 管理的**数据目录**（SQLite + runtime），不是代码仓。
+> - [`mnemosyne-memory-bank`](https://github.com/canyueY/mnemosyne-memory-bank)：Memory Bank 的**公开说明仓**，不含独立数据库、不启动服务、不保存个人数据。
+>
+> **项目隔离用 Bank，跨设备才用多 Node；不要让两套系统同时对同一份长期认知拥有写入权。**
+
 它希望解决的不是简单的对话历史保存问题，而是如何让 Agent 在长期运行中持续积累经验：将经历转化为证据，将证据组织成记忆，在新信息出现时更新已有认知，并通过行为结果和反馈不断改善未来的判断。
 
 Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务为核心原则。它可以作为独立记忆系统运行，也可以通过适配器接入 DeepSeek Harness（DSH）等 Agent 宿主。
@@ -280,6 +288,44 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
 
 > **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**  
 > Mnemosyne 是整套基础设施；Node 是一次独立运行实例；Memory Bank 是 Node 内部的逻辑记忆空间。
+
+### 2.10 运行时边界：一个 Node，一个 Memory Bank
+
+| 层 | 实体 | 是否独立存储 | 说明 |
+| --- | --- | --- | --- |
+| 代码 | `canyueY/mnemosyne` | 否 | Node / Core / API / SDK |
+| 运行 | Mnemosyne Node | 是，一个 Node 一个数据根 | 进程、配置、事务、任务 |
+| 数据 | Mnemosyne Memory Bank | 是，Node 的物理数据目录 | SQLite、runtime、logs、components |
+| 逻辑 | Personal / Projects / Knowledge / Shared / Public / System | 否，同一数据库内的 Bank | 权限、检索范围、隔离 |
+| 文档 | `canyueY/mnemosyne-memory-bank` | 否 | 架构与数据契约说明，不是运行时 |
+
+**同一 Node 内：**
+
+- 不同项目用不同 Bank，不复制数据库；
+- 默认检索只查 `personal`；
+- `shared` / `public` 不会被自动带进 `personal`；
+- 需要显式指定 `banks` 才能跨空间检索。
+
+**不同 Node 之间：**
+
+- 不共享同一个 SQLite；
+- 通过 API / SDK / MCP / 导入导出交换；
+- 同一认知必须有明确权威来源，不能双写；
+- 跨 Node 联邦按规划放在 2.1+。
+
+推荐形态：
+
+```text
+一个用户
+  └─ 一个 Mnemosyne Node
+       └─ 一个 Memory Bank
+            ├─ personal
+            ├─ projects
+            └─ knowledge
+```
+
+> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**  
+> 两者逻辑上重合、可以关联，但不应该各自维护一套数据库。
 
 
 ---
