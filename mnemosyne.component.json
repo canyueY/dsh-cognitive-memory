@@ -1,0 +1,32 @@
+{
+  "component_id": "mnemosyne.core-node",
+  "name": "Mnemosyne Cognitive Node",
+  "version": "2.0.0",
+  "type": "provider",
+  "provider": "official",
+  "interfaces": {
+    "provides": [
+      "memory.observe",
+      "memory.search",
+      "memory.retrieve",
+      "memory.governance",
+      "memory.migration"
+    ],
+    "requires": []
+  },
+  "protocols": ["mnemosyne-component-v1", "rest-api-v1", "mcp"],
+  "permissions": ["memory.read", "memory.write", "memory.admin"],
+  "banks": ["personal", "projects", "knowledge", "shared", "system"],
+  "compatibility": {
+    "mnemosyne": ">=2.0.0"
+  },
+  "lifecycle": {
+    "health_check": true,
+    "config_schema": true
+  },
+  "entry": {
+    "cli": "mnemosyne",
+    "http": "/api/v1",
+    "package": "cognitive_memory"
+  }
+}
