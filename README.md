@@ -124,6 +124,10 @@ Mnemosyne 不试图成为一个完整的 Agent 框架。
 
 Agent 决定如何行动，Mnemosyne 负责让行动能够建立在可靠的历史经验之上。
 
+![Mnemosyne 项目定位与整体架构](docs/assets/architecture/architecture-panorama.png)
+
+*项目定位、五层系统架构、Node 与 Memory Bank、记忆认知生命周期、多 Agent 接入与跨 Node 互操作总览。*
+
 
 ### 2.1 官方定义：个人认知基础设施
 
@@ -427,6 +431,10 @@ Mnemosyne 不把所有反馈混为一谈。
 ---
 
 ## 4. 整体架构
+
+![Mnemosyne 个人认知基础设施架构图](docs/assets/architecture/architecture-overview.png)
+
+*外部接入 → Mnemosyne Node / Core → Memory Bank 数据层；不同 Node 之间通过授权互操作，不共享数据库。*
 
 Mnemosyne 采用 Host 与 Service 分离的架构思路。
 
