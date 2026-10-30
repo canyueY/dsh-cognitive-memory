@@ -1,16 +1,22 @@
-# Mnemosyne
+# Mnemosyne（Legacy · DSH 插件发行壳）
 
 [English](README.en.md) | **简体中文**
 
+> **⚠️ Legacy / 非 2.0 权威实现**  
+> - **Mnemosyne 2.0 独立 Node 权威仓：** [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)  
+> - **本仓库（npm `dsh-mnemosyne`）** 定位为 **DSH 宿主插件分发通道 / 历史公开包**，**不得**作为 2.0 GA、Capability Matrix 或「是否已实现 Identity/Bank/CLI」的核对标尺。  
+> - 同步策略：不把权威 Node 全量静默覆盖进本仓 `service/`；新能力以 `canyueY/mnemosyne` 为准。详见权威仓 `docs/REPO_BASELINE.md`。  
+> - 本仓**暂不** GitHub Archive（避免打断既有 npm 安装）；状态 = **Legacy + 跳转**。
+
 ### DSH Evolving Memory System
 
-**DSH 演化记忆系统**
+**DSH 演化记忆系统**（插件壳；完整 Node 见上）
 
 > 从记住信息，到理解变化；从检索过去，到延续关系。
 
-Mnemosyne (`dsh-mnemosyne`) 是面向 DSH（DeepSeek Harness）的统一记忆基础设施，旨在为长期陪伴、持续学习、个体化理解和社会关系演化提供可靠、可追溯、可纠正的记忆能力。
+Mnemosyne (`dsh-mnemosyne`) 是面向 DSH（DeepSeek Harness）的统一记忆基础设施插件发行形态，旨在为长期陪伴、持续学习、个体化理解和社会关系演化提供可靠、可追溯、可纠正的记忆能力。
 
-> **更名说明**：本项目由 `dsh-cognitive-memory` 更名而来。旧配置键、旧环境变量与旧数据目录仍保留迁移兼容；安装时请使用新的 `dsh-mnemosyne`。
+> **更名说明**：本项目由 `dsh-cognitive-memory` 更名而来。旧配置键、旧环境变量与旧数据目录仍保留迁移兼容；安装时请使用新的 `dsh-mnemosyne`。独立 Node 请改用 [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)。
 
 传统记忆系统往往关注：**存储了什么，以及能否在需要时找回来。**
 

@@ -1,12 +1,18 @@
-# Mnemosyne
+# Mnemosyne (Legacy · DSH plugin distribution shell)
 
-**English** | [简体中文](README.zh.md)
+**English** | [简体中文](README.md)
+
+> **⚠️ Legacy / not the Mnemosyne 2.0 authority**  
+> - **Authoritative 2.0 Node:** [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)  
+> - **This repo (npm `dsh-mnemosyne`)** is a **DSH host plugin distribution channel / historical public package**. Do **not** use it as the measuring stick for 2.0 GA, Capability Matrix, or claims like “Identity/Bank/CLI missing.”  
+> - Sync policy: do **not** silently overwrite this repo’s `service/` with the full Node; new work lands in `canyueY/mnemosyne`. See that repo’s `docs/REPO_BASELINE.md`.  
+> - We are **not** GitHub-archiving this repo yet (npm installs); status = **Legacy + redirect**.
 
 ### DSH Evolving Memory System
 
 > From remembering facts to understanding change; from retrieving the past to continuing a relationship.
 
-Mnemosyne (`dsh-mnemosyne`) is the unified memory infrastructure for DSH (DeepSeek Harness), built to support long-term companionship, continuous learning, individualized understanding, and the evolution of social relationships with memory that is reliable, traceable, and correctable.
+Mnemosyne (`dsh-mnemosyne`) is the DSH-oriented **plugin packaging** of the evolving memory idea. For the standalone Node, use [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne).
 
 > **Rename note:** this project was formerly `dsh-cognitive-memory`. Legacy config keys, environment variables, and data directories remain supported for migration; install as `dsh-mnemosyne`.
 
