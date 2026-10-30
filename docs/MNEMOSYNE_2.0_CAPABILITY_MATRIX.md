@@ -169,7 +169,7 @@
 | --- | --- | --- | --- |
 | Capability Gate | Implemented | `capability_gate.py`、Admin 面板 | 默认 LOCKED（正确） |
 | Capability Audit | Partial | `capability_audit` 表 | 覆盖面需扩到迁移/导出 |
-| Backup/Restore | Implemented | CLI + E1.2 drill + V8 现网签字脚本 | 人工签字栏待填 |
+| Backup/Restore | Implemented | CLI + E1.2 + V8 现网 production 双签（57168） | E6.5 `IN_PROGRESS` |
 | Privacy / Consent / Revocation | Implemented-lite | grants + `governance/policy.py` | 产品化 UI/默认策略仍可厚 |
 | train/forward 真实执行 | Implemented-lite | store/forward/train/retention 执法 + security 测试 | 历史数据未回溯重标 |
 | Operational Runbook | Implemented-lite | NODE_OPS / ADOPTION / E6.5 / e6.5-pilot-status | — |

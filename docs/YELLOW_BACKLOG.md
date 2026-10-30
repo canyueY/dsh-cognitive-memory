@@ -20,7 +20,7 @@
 | --- | --- | --- | --- | --- |
 | Y1 | G8 | `dsh-mnemosyne` Legacy Banner + Description 指向本仓 | 公开 README 可见声明 | **完成**（2026-10-31） |
 | Y2 | G9 | README/Matrix/READINESS 顶部权威仓声明 | 三处互链 REPO_BASELINE | **完成** |
-| Y3 | G2/H | V8 / E6.5 **人工**操作人·复核人签字 | [HUMAN_SIGNOFF_CHECKLIST](reports/HUMAN_SIGNOFF_CHECKLIST.md)；试点 `READY→IN_PROGRESS` | **待人工**（模板已加厚） |
+| Y3 | G2/H | V8 / E6.5 **人工**操作人·复核人签字 | 现网 `mode=production` ok；看板 `IN_PROGRESS` | **完成**（2026-10-31；残月Y 双签） |
 | Y4 | G3/D3 | 情绪/反馈闭环与 Bank 抽样 E2E 加厚 | `tests/contract/test_emotion_feedback_bank_e2e.py` | **完成**（2026-10-31） |
 | Y5 | G5 | 组件「禁直连 sqlite」已有契约测；可选扩到更多包 | `test_storage_provider_boundary`（components+adapters+mcp） | 可选 |
 | Y6 | G7 | 全量 Adoption ≠ E6.5 | 另开里程碑 | 裁切/另开 |

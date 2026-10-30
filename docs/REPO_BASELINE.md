@@ -58,7 +58,7 @@
 | --- | --- | --- |
 | Y1 | G8 仓库叙事统一 | 本文件 + Legacy Banner |
 | Y2 | G9 文档索引 | README/Matrix/READINESS 互链权威仓 |
-| Y3 | E6.5 / V8 人工签字 | 模板/清单已齐；**操作人/复核人栏待填** |
+| Y3 | E6.5 / V8 人工签字 | **完成**：现网 production 双签；试点 `IN_PROGRESS` |
 | Y4 | D3 闭环验收加厚 | **完成**：情绪 shadow→Bank 隔离→feedback promote E2E |
 | Y5 | 组件硬沙箱 / 远程 Registry | 市场裁切；禁直连 sqlite 契约可再扩包（可选） |
 | Y6 | 全量用户收纳 | ≠ E6.5 小规模试点 |

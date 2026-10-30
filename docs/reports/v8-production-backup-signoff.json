@@ -1,0 +1,78 @@
+{
+  "ok": true,
+  "gate": "V8",
+  "mode": "production",
+  "generated_at": "2026-10-30T16:59:51Z",
+  "data_dir": "C:\\Users\\残月Y\\AppData\\Local\\DSH\\cognitive-memory",
+  "db_path": "C:\\Users\\残月Y\\AppData\\Local\\DSH\\cognitive-memory\\data\\memory.db",
+  "db_present": true,
+  "db_bytes": 560459776,
+  "steps": [
+    {
+      "health_before": {
+        "ok": true,
+        "service": "cognitive-memory",
+        "version": "0.2.0",
+        "memories": 57168,
+        "observations": 40767,
+        "outbox_pending": 0,
+        "schemas": 0,
+        "spatiotemporal": true,
+        "emotion": false,
+        "emotion_write_enabled": false,
+        "emotion_shadow_only": true,
+        "emotion_retrieval_enabled": false,
+        "mnemosyne_version": "2.0",
+        "identity": true,
+        "principals": 4,
+        "banks": true,
+        "authority": true,
+        "authority_state": "mnemosyne_primary",
+        "time": "2026-10-30T16:59:51Z"
+      }
+    },
+    {
+      "health_after": {
+        "ok": true,
+        "service": "cognitive-memory",
+        "version": "0.2.0",
+        "memories": 57168,
+        "observations": 40767,
+        "outbox_pending": 0,
+        "schemas": 0,
+        "spatiotemporal": true,
+        "emotion": false,
+        "emotion_write_enabled": false,
+        "emotion_shadow_only": true,
+        "emotion_retrieval_enabled": false,
+        "mnemosyne_version": "2.0",
+        "identity": true,
+        "principals": 4,
+        "banks": true,
+        "authority": true,
+        "authority_state": "mnemosyne_primary",
+        "time": "2026-10-30T16:59:53Z"
+      },
+      "corrupt_restore_rc": 0,
+      "corrupt_detected": true
+    }
+  ],
+  "note": "restore 仅写入临时目录；永不覆盖现网 data_dir",
+  "work_dir": "C:\\Users\\残月Y\\AppData\\Local\\Temp\\mnemosyne-v8-em2zp7sx",
+  "restore_dir": "C:\\Users\\残月Y\\AppData\\Local\\Temp\\mnemosyne-v8-em2zp7sx\\restored",
+  "backup": {
+    "path": "C:\\Users\\残月Y\\AppData\\Local\\Temp\\mnemosyne-v8-em2zp7sx\\backups\\memory-20261030T165951Z.db",
+    "bytes": 560537600
+  },
+  "pass_criteria": {
+    "db_present": true,
+    "backup_ok": true,
+    "restore_ok": true,
+    "memories_match": true,
+    "observations_match": true,
+    "corrupt_detected": true,
+    "never_overwrote_production": true
+  },
+  "report_path": "D:\\HuaweiMoveData\\Users\\残月Y\\Desktop\\桌宠\\mnemosyne\\tmp\\v8-production-backup-signoff.json",
+  "signoff_md": "D:\\HuaweiMoveData\\Users\\残月Y\\Desktop\\桌宠\\mnemosyne\\tmp\\v8-production-backup-signoff.md"
+}

@@ -13,7 +13,7 @@
 | Gate | 必要性 | 现状 | 证据 |
 | --- | --- | --- | --- |
 | G1 Node Independence | 必须 | ✅ | `mnemosyne doctor/health`；套件 health |
-| G2 Storage Safety | 必须 | ✅ 证据 | 合成/fixture；现网 V8 脚本齐；**人工双签见** [HUMAN_SIGNOFF_CHECKLIST](reports/HUMAN_SIGNOFF_CHECKLIST.md)（Y3 待人工） |
+| G2 Storage Safety | 必须 | ✅ | 现网 V8 `mode=production` ok（57168 memories）；[签字单](reports/v8-production-backup-signoff.md)；E6.5 `IN_PROGRESS` |
 | G3 Cognitive Core | 必须 | ✅ | Observation→Memory；情绪/反馈/Bank E2E（Y4）；套件 G3 |
 | G4 Interoperability | 必须 | Partial→增强 | Python+TS SDK；CRUD Agent 执法；SSE；standalone + DSH 薄化 E2E；[API_SPEC](MNEMOSYNE_API_SPEC.md) |
 | G5 Component Management | 必须 | Partial | 本地 Component Manager；无市场（裁切） |

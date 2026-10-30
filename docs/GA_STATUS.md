@@ -18,7 +18,7 @@
 | Gate | 判定 | 说明 |
 | --- | --- | --- |
 | G1 | 可绿 | Node 独立 doctor/health |
-| G2 | 有证据 | 合成 + V8 脚本；**现网人工双签待做（Y3）** |
+| G2 | 可绿 | 现网 V8 production 双签完成（Y3）；E6.5 `IN_PROGRESS` |
 | G3 | 可绿 | 认知核 + Y4 情绪/反馈/Bank 抽样 E2E |
 | G4 | 黄偏绿 | `/api/v1` + SDK + SSE；裸 `/v1` 不做（Y7 关闭） |
 | G5 | 黄 | 本地组件面；市场裁切；禁直连 sqlite 契约（Y5 可选加厚） |
@@ -42,9 +42,9 @@
 
 ## 后续只做
 
-1. **Y3** — V8 / E6.5 人工操作人·复核人签字（[清单](reports/HUMAN_SIGNOFF_CHECKLIST.md)）  
-2. **Y4** — 已加厚契约测；若现网抽样再补手册勾选即可  
-3. **Y6** — 全量 Adoption（另里程碑）  
+1. **Y3** — **完成**（现网 V8 + 看板 `IN_PROGRESS`）  
+2. **Y4** — **完成**（契约 E2E）；试点期内可再抽样  
+3. **Y6** — 全量 Adoption（另里程碑）；观察期结束后再评估 E6.5 → PASSED  
 4. **dsh-mnemosyne** — 维持 Legacy Banner + 跳转；不把本仓 Node silently 塞进 npm `service/`
 
 ## 明确禁止重做

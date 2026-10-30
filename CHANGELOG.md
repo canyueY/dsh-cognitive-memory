@@ -2,9 +2,9 @@
 
 ## 2.0.0
 
-- GA 文档收口：`docs/GA_STATUS.md`；黄项清单 Y4 契约加厚完成，Y3 仅留人工双签模板
+- GA 文档收口：`docs/GA_STATUS.md`；Y4 契约加厚；Y3 现网 V8 production 双签，E6.5 看板 `IN_PROGRESS`
 - `tests/contract/test_emotion_feedback_bank_e2e.py`：情绪 shadow → Bank 隔离 → feedback promote
-- 存储边界契约可选扩展至 `mcp/`；E6.5 看板 + HUMAN_SIGNOFF_CHECKLIST（不代签）
+- 存储边界契约可选扩展至 `mcp/`；`docs/reports/v8-production-backup-signoff.*` 归档
 
 ## 0.1.1
 
