@@ -1,6 +1,10 @@
 # Mnemosyne Node 独立配置示例
 # 复制为 data_dir/node.config.json 时请用 CLI：mnemosyne config init
-# 环境变量可覆盖：MNEMOSYNE_HOME / DSH_MEMORY_DATA_DIR / DSH_MEMORY_TOKEN / DSH_MEMORY_HOST / DSH_MEMORY_PORT
+# 环境变量可覆盖：
+#   MNEMOSYNE_HOME
+#   MNEMOSYNE_MEMORY_BANK / MNEMOSYNE_DATA_DIR / DSH_MEMORY_DATA_DIR（记忆库）
+#   DSH_MEMORY_TOKEN / DSH_MEMORY_HOST / DSH_MEMORY_PORT
+# 默认记忆库：%LOCALAPPDATA%\Mnemosyne Memory Bank（与代码仓分离）
 
 node:
   id: local-node
@@ -13,7 +17,8 @@ runtime:
 
 storage:
   provider: sqlite
-  # 实际路径由 --data-dir / DSH_MEMORY_DATA_DIR 决定；勿把密钥写入本文件
+  bank_name: Mnemosyne Memory Bank
+  # 实际路径由 --data-dir / MNEMOSYNE_MEMORY_BANK 决定；勿把密钥写入本文件
   path: ./data/memory.db
 
 security:

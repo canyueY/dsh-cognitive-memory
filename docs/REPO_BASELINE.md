@@ -11,7 +11,8 @@
 | --- | --- | --- |
 | **权威 Node（2.0）** | [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne) | 独立 Personal Cognitive Node；本地路径通常为桌宠根下 `mnemosyne/` |
 | 宿主（桌宠） | [`canyueY/MurasamePet`](https://github.com/canyueY/MurasamePet) | **Client only**；`cognitive_memory_bridge` HTTP 接入 |
-| 过渡副本 | `MurasamePet/services/cognitive-memory` | 兼容回退；**非**权威源码 |
+| 过渡副本 | `MurasamePet/services/cognitive-memory` | **仅归档**；宿主**不再**静默回退 |
+| **Mnemosyne Memory Bank** | `%LOCALAPPDATA%\Mnemosyne Memory Bank` | 独立数据目录（≠ 代码仓；≠ `DSH\cognitive-memory`） |
 | **非标尺** | [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)（npm `dsh-mnemosyne`） | DSH 插件发行壳 / 历史公开包；**不得**作为 2.0 GA 完成度尺子 |
 
 **禁止**用下列材料否定本仓已实现能力：

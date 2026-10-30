@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- **Mnemosyne Memory Bank**：默认数据目录改为 `%LOCALAPPDATA%\Mnemosyne Memory Bank`，与代码仓分离；`mnemosyne memory-bank migrate-legacy` 迁出旧 `DSH\cognitive-memory`
+- 宿主不再静默回退 `services/cognitive-memory`
 - GA 文档收口：`docs/GA_STATUS.md`；Y4 契约加厚；Y3 现网 V8 production 双签，E6.5 看板 `IN_PROGRESS`
 - `tests/contract/test_emotion_feedback_bank_e2e.py`：情绪 shadow → Bank 隔离 → feedback promote
 - 存储边界契约可选扩展至 `mcp/`；`docs/reports/v8-production-backup-signoff.*` 归档

@@ -8,6 +8,7 @@
   mnemosyne component list|inspect|install|enable|disable|health|authorize|remove|profiles
   mnemosyne authority show|transition|cutover-preview|cutover
   mnemosyne adopt export
+  mnemosyne memory-bank status|init|migrate-legacy
 """
 
 from __future__ import annotations
@@ -159,8 +160,84 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         }
     )
 
+    try:
+        from cognitive_memory.storage.paths import MEMORY_BANK_NAME, migration_status
+
+        mig = migration_status(target=paths["root"])
+        report["memory_bank"] = MEMORY_BANK_NAME
+        report["checks"].append(
+            {
+                "id": "memory_bank_isolation",
+                "ok": True,
+                "bank_name": MEMORY_BANK_NAME,
+                "data_dir": str(paths["root"]),
+                "legacy_dsh_path": mig.get("legacy"),
+                "recommend_migrate": bool(mig.get("recommend_migrate")),
+                "migration": mig,
+                "note": "代码仓 mnemosyne/ 与 Memory Bank 目录分离；默认不再使用 DSH\\cognitive-memory",
+            }
+        )
+        if mig.get("recommend_migrate"):
+            report["checks"].append(
+                {
+                    "id": "legacy_migrate_hint",
+                    "ok": True,
+                    "warning": True,
+                    "hint": "mnemosyne memory-bank migrate-legacy",
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        report["checks"].append({"id": "memory_bank_isolation", "ok": False, "error": str(exc)})
+
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1
+
+
+def cmd_memory_bank(args: argparse.Namespace) -> int:
+    """Memory Bank 状态 / 从旧 DSH 路径迁出。"""
+    _ensure_src_path()
+    from cognitive_memory.storage.paths import (
+        MEMORY_BANK_NAME,
+        copy_memory_bank,
+        default_data_root,
+        ensure_layout,
+        legacy_dsh_data_root,
+        migration_status,
+    )
+
+    action = str(getattr(args, "bank_action", "") or "")
+    target = Path(args.to).expanduser().resolve() if getattr(args, "to", "") else default_data_root()
+    source = (
+        Path(args.source).expanduser().resolve()
+        if getattr(args, "source", "")
+        else legacy_dsh_data_root()
+    )
+    if action == "status":
+        out = migration_status(target=target, legacy=source)
+        out["ok"] = True
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+    if action == "init":
+        paths = ensure_layout(target)
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "bank_name": MEMORY_BANK_NAME,
+                    "data_dir": str(paths["root"]),
+                    "db": str(paths["db"]),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if action == "migrate-legacy":
+        result = copy_memory_bank(source, target, overwrite=bool(getattr(args, "overwrite", False)))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result.get("ok") else 1
+    print(json.dumps({"ok": False, "error": f"unknown_action:{action}"}, ensure_ascii=False))
+    return 1
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -498,7 +575,13 @@ def cmd_component(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mnemosyne", description="Mnemosyne Node (DSH-independent)")
-    parser.add_argument("--data-dir", default=os.environ.get("DSH_MEMORY_DATA_DIR", ""))
+    _default_bank = (
+        os.environ.get("MNEMOSYNE_MEMORY_BANK")
+        or os.environ.get("MNEMOSYNE_DATA_DIR")
+        or os.environ.get("DSH_MEMORY_DATA_DIR")
+        or ""
+    )
+    parser.add_argument("--data-dir", default=_default_bank)
     parser.add_argument("--token", default=os.environ.get("DSH_MEMORY_TOKEN", ""))
     parser.add_argument("--config", default="", help="node.config.json / .yaml 路径")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -602,6 +685,27 @@ def main(argv: list[str] | None = None) -> int:
     p_ad_ex.add_argument("--limit", type=int, default=500)
     p_ad_ex.add_argument("--banks", default="", help="逗号分隔 bank，空=默认多空间")
     p_ad_ex.set_defaults(func=cmd_adopt)
+
+    p_bank = sub.add_parser(
+        "memory-bank",
+        help="Mnemosyne Memory Bank：与代码仓分离的数据目录状态 / 旧路径迁移",
+    )
+    p_bank_sub = p_bank.add_subparsers(dest="bank_action", required=True)
+    p_bank_st = p_bank_sub.add_parser("status", help="对比新 Bank 与旧 DSH\\cognitive-memory")
+    p_bank_st.add_argument("--to", default="", help="目标 Bank 根目录（默认新路径）")
+    p_bank_st.add_argument("--source", default="", help="旧源目录（默认 legacy DSH 路径）")
+    p_bank_st.set_defaults(func=cmd_memory_bank)
+    p_bank_init = p_bank_sub.add_parser("init", help="创建空的 Memory Bank 布局")
+    p_bank_init.add_argument("--to", default="", help="目标 Bank 根目录")
+    p_bank_init.set_defaults(func=cmd_memory_bank)
+    p_bank_mig = p_bank_sub.add_parser(
+        "migrate-legacy",
+        help="从 %%LOCALAPPDATA%%\\DSH\\cognitive-memory 复制到 Memory Bank（不删源）",
+    )
+    p_bank_mig.add_argument("--to", default="", help="目标 Bank 根目录")
+    p_bank_mig.add_argument("--source", default="", help="旧源目录")
+    p_bank_mig.add_argument("--overwrite", action="store_true")
+    p_bank_mig.set_defaults(func=cmd_memory_bank)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

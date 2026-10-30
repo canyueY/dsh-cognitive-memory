@@ -32,15 +32,27 @@ py -3 -m venv .venv
 pip install -e ".[dev]"
 ```
 
-初始化数据目录与配置（任意空目录，**不必**放在桌宠仓库内）：
+代码仓与记忆库**分成两个目录**：
+
+| | 默认 |
+| --- | --- |
+| 代码（本仓库） | `mnemosyne/` |
+| **Mnemosyne Memory Bank** | `%LOCALAPPDATA%\Mnemosyne Memory Bank` |
 
 ```bat
 set MNEMOSYNE_HOME=D:\path\to\mnemosyne
-set DSH_MEMORY_DATA_DIR=%LOCALAPPDATA%\Mnemosyne\node
+set MNEMOSYNE_MEMORY_BANK=%LOCALAPPDATA%\Mnemosyne Memory Bank
 set DSH_MEMORY_TOKEN=change-me
-mnemosyne --data-dir "%DSH_MEMORY_DATA_DIR%" config init
-mnemosyne --data-dir "%DSH_MEMORY_DATA_DIR%" doctor
-mnemosyne --data-dir "%DSH_MEMORY_DATA_DIR%" start --host 127.0.0.1 --port 8765 --token %DSH_MEMORY_TOKEN%
+mnemosyne memory-bank init
+mnemosyne --data-dir "%MNEMOSYNE_MEMORY_BANK%" config init
+mnemosyne doctor
+mnemosyne start --host 127.0.0.1 --port 8765 --token %DSH_MEMORY_TOKEN%
+```
+
+从旧 `%LOCALAPPDATA%\DSH\cognitive-memory` 迁出（不删源）：
+
+```bat
+mnemosyne memory-bank migrate-legacy
 ```
 
 健康检查：
@@ -80,7 +92,8 @@ curl -H "Authorization: Bearer %DSH_MEMORY_TOKEN%" http://127.0.0.1:8765/api/v1/
 | 变量 | 含义 |
 | --- | --- |
 | `MNEMOSYNE_HOME` | 本仓库根目录（宿主解析启动入口时优先） |
-| `DSH_MEMORY_DATA_DIR` | Node 数据目录 |
+| `MNEMOSYNE_MEMORY_BANK` / `MNEMOSYNE_DATA_DIR` | **Mnemosyne Memory Bank** 根目录（优先） |
+| `DSH_MEMORY_DATA_DIR` | 旧环境变量兼容（等同 Memory Bank） |
 | `DSH_MEMORY_TOKEN` | Bearer token |
 | `DSH_MEMORY_BASE_URL` | 已运行 Node 的 URL |
 | `DSH_MEMORY_HOST` / `PORT` | 监听地址 |
