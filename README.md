@@ -5,6 +5,7 @@
 让 Agent 不只是记住过去，而是能够理解变化、积累经验，并修正自己。
 
 Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
+它为 AI Agent 和其他智能应用提供一套独立、持久、可治理、可演化的认知能力，让它们能够积累经验、形成记忆、理解关系、检索过去、修正认知，并在时间中持续学习。
 
 > **权威实现：** 本仓库 [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)。  
 > **不是 2.0 标尺：** npm / GitHub 旧壳 [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)。  
