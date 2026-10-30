@@ -2,9 +2,9 @@
 
 - 生成时间（UTC）：`2026-10-30T16:59:51Z`
 - 模式：`production`
-- data_dir：`C:\Users\残月Y\AppData\Local\DSH\cognitive-memory`
-- 备份文件：`C:\Users\残月Y\AppData\Local\Temp\mnemosyne-v8-em2zp7sx\backups\memory-20261030T165951Z.db`
-- 恢复校验目录：`C:\Users\残月Y\AppData\Local\Temp\mnemosyne-v8-em2zp7sx\restored`
+- data_dir：`C:\Users\<user>\AppData\Local\DSH\cognitive-memory`
+- 备份文件：`C:\Users\<user>\AppData\Local\Temp\mnemosyne-v8-em2zp7sx\backups\memory-20261030T165951Z.db`
+- 恢复校验目录：`C:\Users\<user>\AppData\Local\Temp\mnemosyne-v8-em2zp7sx\restored`
 - 脚本判定 ok：`True`
 - 归档 JSON：`docs/reports/v8-production-backup-signoff.json`
 
@@ -28,8 +28,8 @@
 
 | 项 | 填写 |
 | --- | --- |
-| 操作人 | 残月Y（canyueY） |
-| 复核人 | 残月Y（本人复核；用户会话指令授权 2026-10-31） |
+| 操作人 | canyueY |
+| 复核人 | canyueY（本人复核） |
 | 日期 | 2026-10-31 |
 | 现网实例说明（机器/用户） | 本机 `%LOCALAPPDATA%\DSH\cognitive-memory`；桌宠宿主现网库 |
 | 是否确认未覆盖现网 DB | **是** |

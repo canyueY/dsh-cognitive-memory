@@ -12,7 +12,7 @@
 已执行：
 
 ```bat
-cd /d D:\HuaweiMoveData\Users\残月Y\Desktop\桌宠\mnemosyne
+cd /d <workspace>\mnemosyne
 set PYTHONPATH=src
 py -3 scripts\mnemosyne_production_backup_signoff.py --i-understand-production --confirm-data-dir "%LOCALAPPDATA%\DSH\cognitive-memory" --archive
 ```
