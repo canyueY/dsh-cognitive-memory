@@ -1,8 +1,10 @@
 # Mnemosyne 2.0 Readiness Gate（证据账本）
 
-**状态：** Partial Evidence（2026-10-30）— 可跑套件；**不等于**正式收纳全体用户  
+> **权威仓：** [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne) · **非标尺：** [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)（见 [REPO_BASELINE](REPO_BASELINE.md)）
+
+**状态：** Partial Evidence（2026-10-31）— 可跑套件；**不等于**正式收纳全体用户  
 **套件：** `scripts/mnemosyne_readiness_suite.py` → `tmp/mnemosyne_readiness_report.json`  
-**上位：** [IMPLEMENTATION_PLAN §8](MNEMOSYNE_2.0_IMPLEMENTATION_PLAN.md) · [CAPABILITY_MATRIX](MNEMOSYNE_2.0_CAPABILITY_MATRIX.md)
+**上位：** [IMPLEMENTATION_PLAN §8](MNEMOSYNE_2.0_IMPLEMENTATION_PLAN.md) · [CAPABILITY_MATRIX](MNEMOSYNE_2.0_CAPABILITY_MATRIX.md) · [YELLOW_BACKLOG](YELLOW_BACKLOG.md)
 
 ---
 
@@ -17,8 +19,8 @@
 | G5 Component Management | 必须 | Partial | 本地 Component Manager；无市场（裁切） |
 | G6 Governance | 必须 | ✅ 增强 | grants + CRUD + policy(store/forward/train/retention)；硬删闸；MCP 写确认 |
 | G7 Migration | 必须 | Partial→增强 | Staging(dedupe+分层回滚)+Cutover；Admin Adoption；export 受 allow_forward |
-| G8 Compatibility | 必须 | Partial | Compat Gateway；宿主 A-MEM/Mem0 仍并行 |
-| G9 Documentation | 必须 | Partial→增强 | + API_SPEC / Matrix 刷账 / E6.5 pilot-status；全量仍另开 |
+| G8 Compatibility | 必须 | Partial→增强 | Compat Gateway；**仓库叙事已统一到本仓**；宿主 A-MEM/Mem0 仍可并行过渡 |
+| G9 Documentation | 必须 | Partial→增强 | API_SPEC / Matrix / REPO_BASELINE / YELLOW_BACKLOG；全量收纳仍另开 |
 | G10 Federation | **裁切 → 2.1+** | N/A | 跨 Node 联邦不做本 GA 完成声明 |
 
 ---

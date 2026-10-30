@@ -1,10 +1,14 @@
 # Mnemosyne 2.0 — Capability Matrix & Gap Analysis
 
-**盘点日期：** 2026-10-30（修订：PR #12–#14 后账本同步 + GA hardening：API Spec / Policy / DSH 薄化）  
+> **权威仓 = [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)。**  
+> **旧 npm / [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 不作为 2.0 标尺。**  
+> 详见 [REPO_BASELINE](REPO_BASELINE.md)。用旧公开 `service/` 目录做的「V1.5 / 无 Identity/Bank/CLI」类审计视为**过时基线**，不得覆盖本账本。
+
+**盘点日期：** 2026-10-31（修订：权威仓声明 + 黄项厚度；此前含 PR #12–#14 / GA hardening）  
 **对照目标：** [MASTER_PLAN](MNEMOSYNE_2.0_MASTER_PLAN.md)  
 **架构边界：** [ARCHITECTURE](MNEMOSYNE_2.0_ARCHITECTURE.md)（§0–§6 双重目标与生态边界）  
 **API 规格：** [MNEMOSYNE_API_SPEC.md](MNEMOSYNE_API_SPEC.md)  
-**证据范围：** `canyueY/MurasamePet` `origin/main`（含 PR #1–#14）+ `services/cognitive-memory`
+**证据范围：** **`canyueY/mnemosyne`（本仓）**；宿主桥接见 `MurasamePet`；`services/cognitive-memory` 仅为过渡副本
 
 状态枚举：
 

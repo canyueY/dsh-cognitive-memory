@@ -2,14 +2,21 @@
 
 **Independent Personal Cognitive Infrastructure** — 可独立安装、配置、运行的个人认知记忆 Node。
 
+> **基线声明（必读）**  
+> - **权威仓（2.0 Node）：** 本仓库 [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne)  
+> - **不是 2.0 标尺：** 公开 npm / GitHub [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)（DSH 插件历史壳）  
+> - 完成度 / GA / Matrix 核对见 [`docs/REPO_BASELINE.md`](docs/REPO_BASELINE.md)；**禁止**用旧 `dsh-mnemosyne/service` 盘点否定本仓能力。
+
 本仓库从桌宠 monorepo 的 `services/cognitive-memory` **拆出**，与宿主（大肥鱼 / DSH / 其他 Agent）**地址分离、配置独立**，通过 HTTP / SDK / MCP 接入。
 
 | | |
 | --- | --- |
+| GitHub | https://github.com/canyueY/mnemosyne |
 | 包名（pip） | `mnemosyne` |
 | Python 包 | `cognitive_memory`（导入名保持稳定） |
 | 默认端口 | `127.0.0.1:8765` |
 | CLI | `mnemosyne` |
+| 本地常见路径 | 桌宠根目录下 `mnemosyne/` |
 
 ---
 

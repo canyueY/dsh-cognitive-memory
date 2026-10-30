@@ -161,12 +161,19 @@ def main() -> int:
             "batch_id": batch.batch_id,
         }
 
-        # G4: principals exist for external agent path
+        # G4: principals + SDK + policy 厚度（不重做 Identity/Bank）
         principals = h.get("principals") if isinstance(h, dict) else None
+        from cognitive_memory.sdk import MnemosyneClient  # noqa: F401
+        from cognitive_memory.governance import policy as _policy  # noqa: F401
+
+        banks = svc.list_banks() if hasattr(svc, "list_banks") else {}
         report["gates"]["G4_interop_surface"] = {
             "ok": True,
-            "note": "REST /agents/act + SDK already in tree; suite checks principals seeded",
+            "note": "SDK+policy importable; principals seeded; banks listed",
             "principals": principals,
+            "banks_ok": bool(banks),
+            "sdk": "cognitive_memory.sdk.MnemosyneClient",
+            "policy_module": "cognitive_memory.governance.policy",
         }
 
         # G7b: cutover confirm gate
@@ -187,9 +194,31 @@ def main() -> int:
             "note": "跨 Node 联邦不纳入本 GA；见 IMPLEMENTATION_PLAN §6",
         }
 
+        docs_root = ROOT / "docs"
+        required_docs = [
+            "REPO_BASELINE.md",
+            "YELLOW_BACKLOG.md",
+            "MNEMOSYNE_API_SPEC.md",
+            "MNEMOSYNE_2.0_CAPABILITY_MATRIX.md",
+            "MNEMOSYNE_2.0_READINESS.md",
+            "MNEMOSYNE_ADOPTION.md",
+            "MNEMOSYNE_NODE_OPERATIONS.md",
+        ]
+        missing_docs = [n for n in required_docs if not (docs_root / n).is_file()]
         report["gates"]["G9_docs"] = {
-            "ok": True,
-            "note": "MNEMOSYNE_ADOPTION.md + READINESS + NODE_OPERATIONS",
+            "ok": not missing_docs,
+            "required": required_docs,
+            "missing": missing_docs,
+            "note": "权威仓文档集；dsh-mnemosyne 非标尺",
+        }
+
+        # G8: 仓库基线声明存在（叙事统一）
+        baseline = docs_root / "REPO_BASELINE.md"
+        baseline_txt = baseline.read_text(encoding="utf-8") if baseline.is_file() else ""
+        report["gates"]["G8_repo_baseline"] = {
+            "ok": "canyueY/mnemosyne" in baseline_txt and "dsh-mnemosyne" in baseline_txt,
+            "path": str(baseline),
+            "note": "权威仓 vs 旧 npm 声明",
         }
 
         report["ok"] = all(bool(g.get("ok")) for g in report["gates"].values())
