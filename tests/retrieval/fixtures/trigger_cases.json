@@ -1,0 +1,20 @@
+[
+  {"query": "你好", "expect_retrieve": false, "label": "chitchat"},
+  {"query": "在吗", "expect_retrieve": false, "label": "chitchat"},
+  {"query": "谢谢", "expect_retrieve": false, "label": "chitchat"},
+  {"query": "晚安", "expect_retrieve": false, "label": "chitchat"},
+  {"query": "今天天气怎么样", "expect_retrieve": false, "label": "no_signal"},
+  {"query": "随便聊聊", "expect_retrieve": false, "label": "no_signal"},
+  {"query": "上次我们讨论了什么？", "expect_retrieve": true, "label": "explicit"},
+  {"query": "你还记得我说过讨厌香菜吗", "expect_retrieve": true, "label": "explicit"},
+  {"query": "记得我们约好的时间吗", "expect_retrieve": true, "label": "explicit"},
+  {"query": "继续之前的项目", "expect_retrieve": true, "label": "implicit_continue"},
+  {"query": "继续做那个任务", "expect_retrieve": true, "label": "implicit_continue"},
+  {"query": "按照之前定下的方案执行", "expect_retrieve": true, "label": "decision"},
+  {"query": "别违背约定", "expect_retrieve": true, "label": "decision"},
+  {"query": "我之前说的情况已经变了", "expect_retrieve": true, "label": "maintain"},
+  {"query": "你记错了，纠正一下", "expect_retrieve": true, "label": "maintain"},
+  {"query": "这个项目方案必须按习惯来", "expect_retrieve": true, "label": "implicit_pref"},
+  {"query": "上个月我们第一次去那家店", "expect_retrieve": true, "label": "temporal"},
+  {"query": "回顾一下历史讨论", "expect_retrieve": true, "label": "temporal"}
+]

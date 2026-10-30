@@ -1,0 +1,107 @@
+/** Minimal Mnemosyne Node REST client (Python SDK parity subset). */
+
+export type MnemosyneClientOptions = {
+  baseUrl: string;
+  token: string;
+  agentId?: string;
+  agentToken?: string;
+  fetchImpl?: typeof fetch;
+};
+
+export class MnemosyneClientError extends Error {
+  status: number;
+  body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "MnemosyneClientError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export class MnemosyneClient {
+  private baseUrl: string;
+  private token: string;
+  private agentId?: string;
+  private agentToken?: string;
+  private fetchImpl: typeof fetch;
+
+  constructor(opts: MnemosyneClientOptions) {
+    this.baseUrl = opts.baseUrl.replace(/\/$/, "");
+    this.token = opts.token;
+    this.agentId = opts.agentId;
+    this.agentToken = opts.agentToken;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  private headers(extra?: Record<string, string>): Record<string, string> {
+    const h: Record<string, string> = {
+      Authorization: `Bearer ${this.token}`,
+      "Content-Type": "application/json",
+      ...extra,
+    };
+    if (this.agentId && this.agentToken) {
+      h["X-Agent-Id"] = this.agentId;
+      h["X-Agent-Token"] = this.agentToken;
+    }
+    return h;
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<T> {
+    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+      method,
+      headers: this.headers(),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail =
+        typeof data === "object" && data && "detail" in data
+          ? JSON.stringify((data as { detail: unknown }).detail)
+          : res.statusText;
+      throw new MnemosyneClientError(detail || res.statusText, res.status, data);
+    }
+    return data as T;
+  }
+
+  health() {
+    return this.request<Record<string, unknown>>("GET", "/api/v1/health");
+  }
+
+  contract() {
+    return this.request<Record<string, unknown>>("GET", "/api/v1/contract");
+  }
+
+  node() {
+    return this.request<Record<string, unknown>>("GET", "/api/v1/node");
+  }
+
+  observe(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/observations", payload);
+  }
+
+  propose(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/memories", payload);
+  }
+
+  search(query: string, extra: Record<string, unknown> = {}) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/memories/search", {
+      query,
+      ...extra,
+    });
+  }
+
+  feedback(memoryId: string, opts: { useful?: boolean; incorrect?: boolean; note?: string }) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/feedback", {
+      memory_id: memoryId,
+      useful: opts.useful,
+      incorrect: opts.incorrect,
+      note: opts.note ?? "",
+      producer: "mnemosyne-ts-sdk",
+    });
+  }
+}
