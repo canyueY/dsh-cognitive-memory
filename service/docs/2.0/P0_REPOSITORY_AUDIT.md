@@ -1,11 +1,14 @@
 # Mnemosyne 2.0 — P0 仓库审计报告
 
 **审计对象：** `dsh-mnemosyne` 仓库中的 `service/` Node/Core，以及根目录 DSH 适配层  
-**审计提交：** `589c694`（`docs: add 3.0 algorithm stack analysis`）  
+**审计代码快照：** `589c694`（`docs: add 3.0 algorithm stack analysis`）
+**审计文档提交：** `c82d47e`  
 **软件版本：** `3.0.0`  
 **审计日期：** 2026-10-31（Asia/Shanghai）  
 **审计性质：** P0 Repository Audit；只读检查、测试运行、合成基准与只读数据盘点  
 **结论状态：** 现有系统可作为 2.0 的运行时与记忆基础；**不能把现有能力视为 2.0 Claim 架构已经实现**
+
+> **重要：** 本报告是代码快照 `589c694` / 文档提交 `c82d47e` 的历史审计。当前 `main` 已包含 P2–P7 与 DSH 0.2.1 宿主修复；Claim/Evidence/Verification/TMS/Strategy/Knowledge 不再是 Missing。当前状态见 [POST_AUDIT_DELTA.md](POST_AUDIT_DELTA.md)。
 
 ---
 
