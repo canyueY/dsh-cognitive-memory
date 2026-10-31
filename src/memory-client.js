@@ -13,9 +13,21 @@ export class MemoryClient {
     this.timeoutMs = Number(opts.timeoutMs || 15000);
   }
 
-  async request(method, path, body) {
+  /**
+   * @param {string} method
+   * @param {string} path
+   * @param {unknown} [body]
+   * @param {{ signal?: AbortSignal }} [opts]
+   */
+  async request(method, path, body, opts = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.timeoutMs);
+    const outer = opts.signal;
+    const onOuterAbort = () => ctrl.abort(outer?.reason);
+    if (outer) {
+      if (outer.aborted) ctrl.abort(outer.reason);
+      else outer.addEventListener('abort', onOuterAbort, { once: true });
+    }
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method,
@@ -39,23 +51,24 @@ export class MemoryClient {
       return data;
     } finally {
       clearTimeout(timer);
+      if (outer) outer.removeEventListener('abort', onOuterAbort);
     }
   }
 
-  health() { return this.request('GET', '/api/v1/health'); }
-  search(body) { return this.request('POST', '/api/v1/memories/search', body); }
-  get(id, includeEvidence = false) {
+  health(opts) { return this.request('GET', '/api/v1/health', undefined, opts); }
+  search(body, opts) { return this.request('POST', '/api/v1/memories/search', body, opts); }
+  get(id, includeEvidence = false, opts) {
     const q = includeEvidence ? '?include_evidence=true' : '';
-    return this.request('GET', `/api/v1/memories/${encodeURIComponent(id)}${q}`);
+    return this.request('GET', `/api/v1/memories/${encodeURIComponent(id)}${q}`, undefined, opts);
   }
-  propose(body) { return this.request('POST', '/api/v1/memories', body); }
-  update(id, body) { return this.request('PATCH', `/api/v1/memories/${encodeURIComponent(id)}`, body); }
-  forget(id, hard = false) {
+  propose(body, opts) { return this.request('POST', '/api/v1/memories', body, opts); }
+  update(id, body, opts) { return this.request('PATCH', `/api/v1/memories/${encodeURIComponent(id)}`, body, opts); }
+  forget(id, hard = false, opts) {
     const q = hard ? '?hard=true' : '';
-    return this.request('DELETE', `/api/v1/memories/${encodeURIComponent(id)}${q}`);
+    return this.request('DELETE', `/api/v1/memories/${encodeURIComponent(id)}${q}`, undefined, opts);
   }
-  observe(body) { return this.request('POST', '/api/v1/observations', body); }
-  feedback(body) { return this.request('POST', '/api/v1/feedback', body); }
-  context(body) { return this.request('POST', '/api/v1/contexts/build', body); }
-  task(id) { return this.request('GET', `/api/v1/tasks/${encodeURIComponent(id)}`); }
+  observe(body, opts) { return this.request('POST', '/api/v1/observations', body, opts); }
+  feedback(body, opts) { return this.request('POST', '/api/v1/feedback', body, opts); }
+  context(body, opts) { return this.request('POST', '/api/v1/contexts/build', body, opts); }
+  task(id, opts) { return this.request('GET', `/api/v1/tasks/${encodeURIComponent(id)}`, undefined, opts); }
 }
