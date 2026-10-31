@@ -2,17 +2,23 @@
 
 **更新：** 2026-10-31  
 **仓库：** `canyueY/dsh-mnemosyne`  
-**main：** `b891230`（PR #1 MERGED）+ post-merge Knowledge/GA 收口
+
+> **任务书对照：** 本文件的阶段编号与 `10.31更新方案.txt` 不完全一致。任务书的 P7（故障定位/修复验证）、P8（安全强化全链路）、P9（迁移/发布）尚未完成；P2 仍缺 Merge/Split 与完整关系。详见 [PLAN_COMPLETION_AUDIT.md](PLAN_COMPLETION_AUDIT.md)。
+
+**main：** `9eb9b93`（P2–P7 + DSH 0.2.1 修复）
 
 | 阶段 | 状态 |
 |---|---|
 | P0–P1.5 | **COMPLETED** |
-| P2 Claim Vertical Slice | **COMPLETED** |
+| P2 Claim Vertical Slice (repo phase) | **PARTIAL**（Merge/Split/完整 Relation 待补） |
 | P3 Evidence Objects | **COMPLETED** |
 | P4 Truth Maintenance | **COMPLETED** |
 | P5 Strategy / Experience / A/B / MetaController | **COMPLETED** |
 | P6 Knowledge + gated RL/Value | **COMPLETED** |
-| P7 Claim-stack GA check | **COMPLETED**（脚本；人工现网签字仍外置） |
+| P7 Claim-stack GA check (repo phase) | **COMPLETED**（仅 GA 脚本；人工现网签字外置） |
+| 任务书 P7 Fault Localization & Repair | **MISSING** |
+| 任务书 P8 Security Hardening（全链路） | **PARTIAL** |
+| 任务书 P9 Migration & Release | **MISSING** |
 
 ## 硬约束（仍生效）
 

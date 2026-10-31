@@ -15,6 +15,7 @@
 | [P0_REPOSITORY_AUDIT.md](P0_REPOSITORY_AUDIT.md) | P0 仓库审计（历史快照） |
 | [POST_AUDIT_DELTA.md](POST_AUDIT_DELTA.md) | P0 历史快照 → 当前 `main`（P2–P7 + DSH 0.2.1）状态增量 |
 | [HOST_E2E_VERIFICATION.md](HOST_E2E_VERIFICATION.md) | 真实 `dsh-tools@0.2.1-rc.5` ToolRuntime 宿主端到端验证 |
+| [PLAN_COMPLETION_AUDIT.md](PLAN_COMPLETION_AUDIT.md) | 对照 `10.31更新方案.txt` 的阶段完成情况与缺口 |
 | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | 差距分析（历史+进展注记） |
 | [RISK_REGISTER.md](RISK_REGISTER.md) | 风险登记 |
 
