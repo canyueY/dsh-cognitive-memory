@@ -317,6 +317,50 @@ class TmsPropagateIn(BaseModel):
     max_depth: int = 16
 
 
+class ExperienceCreateIn(BaseModel):
+    context: dict[str, Any] = Field(default_factory=dict)
+    action: dict[str, Any] = Field(default_factory=dict)
+    outcome: dict[str, Any] = Field(default_factory=dict)
+    memory_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    reward: float | None = None
+    bank_id: str = "personal"
+    source: str = "manual"
+
+
+class StrategyProposeIn(BaseModel):
+    name: str
+    description: str = ""
+    scope: dict[str, Any] = Field(default_factory=dict)
+    status: str = "proposed"
+
+
+class StrategyLogIn(BaseModel):
+    experience_id: str | None = None
+    decision: str = ""
+    outcome: str = ""
+    propensity: float | None = None
+    overlap: float | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyOfflineEvalIn(BaseModel):
+    strategy_id: str
+    persist_propensity: bool = True
+    log_result: bool = True
+
+
+class StrategyPropensityIn(BaseModel):
+    strategy_id: str | None = None
+    experience_ids: list[str] = Field(default_factory=list)
+    scope: dict[str, Any] = Field(default_factory=dict)
+
+
+class MetaControllerIn(BaseModel):
+    action: str = "reflect"
+    strategy_id: str | None = None
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""

@@ -17,14 +17,36 @@ def record_feedback_sample(
     db: Database,
     sample: dict[str, Any],
 ) -> dict[str, Any]:
-    """RL-A：仅记录情境/行为/反馈样本元数据（不训练）。无 Gate 要求。"""
+    """RL-A：写入 first-class Experience（不训练）。无 Gate 要求。"""
     # 样本应引用 memory/schema id，不复制个人 LT 正文为第二权威源
+    from cognitive_memory.strategy.experience_store import ExperienceStore
+
+    ctx = sample.get("context") if isinstance(sample.get("context"), dict) else {}
+    action = sample.get("action") if isinstance(sample.get("action"), dict) else {}
+    outcome = sample.get("outcome") if isinstance(sample.get("outcome"), dict) else {}
+    memory_ids = sample.get("memory_ids") if isinstance(sample.get("memory_ids"), list) else []
+    claim_ids = sample.get("claim_ids") if isinstance(sample.get("claim_ids"), list) else []
+    reward = sample.get("reward")
+    if reward is not None and not isinstance(reward, (int, float)):
+        reward = None
+    bank_id = str(sample.get("bank_id") or "personal")
+    exp = ExperienceStore(db).create(
+        context=ctx,
+        action=action,
+        outcome=outcome,
+        memory_ids=[str(x) for x in memory_ids],
+        claim_ids=[str(x) for x in claim_ids],
+        reward=float(reward) if reward is not None else None,
+        bank_id=bank_id,
+        source=str(sample.get("source") or "rl_feedback"),
+    )
     return {
         "ok": True,
         "phase": "RL-A",
         "recorded": True,
+        "experience_id": exp.get("id"),
         "sample_keys": sorted(sample.keys()),
-        "note": "feedback logged conceptually; buffer persistence deferred",
+        "note": "Experience persisted; training still gated",
     }
 
 

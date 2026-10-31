@@ -26,6 +26,12 @@ from cognitive_memory.domain.models import (
     ClaimVerifyIn,
     EvidenceIndependenceIn,
     EvidenceObjectCreateIn,
+    ExperienceCreateIn,
+    MetaControllerIn,
+    StrategyLogIn,
+    StrategyOfflineEvalIn,
+    StrategyPropensityIn,
+    StrategyProposeIn,
     TmsJustificationIn,
     TmsPropagateIn,
     CognitiveChangePlanApplyIn,
@@ -932,6 +938,193 @@ def create_app(
         bel = _claim_store().tms.get_belief(node_id)
         impact = _claim_store().tms.engine.impact(node_id)
         return {"ok": True, "belief": bel.model_dump(mode="json"), "impact": impact}
+
+    # ---- P5 Experience / Strategy ----
+    @app.post(f"{pref}/experiences")
+    def experience_create(
+        body: ExperienceCreateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="experience.create")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+
+        _ = access
+        return ExperienceStore(service.db).create(
+            context=body.context,
+            action=body.action,
+            outcome=body.outcome,
+            memory_ids=body.memory_ids,
+            claim_ids=body.claim_ids,
+            reward=body.reward,
+            bank_id=body.bank_id,
+            source=body.source,
+        )
+
+    @app.get(f"{pref}/experiences")
+    def experience_list(
+        bank_id: str | None = None,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="experience.list")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+
+        _ = access
+        items = ExperienceStore(service.db).list(bank_id=bank_id, limit=limit)
+        return {"ok": True, "items": items, "count": len(items)}
+
+    @app.post(f"{pref}/strategies")
+    def strategy_propose(
+        body: StrategyProposeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.propose")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).propose(
+            body.name,
+            description=body.description,
+            scope=body.scope,
+            status=body.status,
+        )
+
+    @app.get(f"{pref}/strategies")
+    def strategy_list(
+        status: str | None = None,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.list")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        items = StrategyStore(service.db).list(status=status, limit=limit)
+        return {"ok": True, "items": items, "count": len(items)}
+
+    @app.get(f"{pref}/strategies/{{strategy_id}}")
+    def strategy_get(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.get")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        row = StrategyStore(service.db).get(strategy_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="strategy_not_found")
+        return {"ok": True, "strategy": row}
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/log")
+    def strategy_log(
+        strategy_id: str,
+        body: StrategyLogIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.log")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).log(
+            strategy_id,
+            experience_id=body.experience_id,
+            decision=body.decision,
+            outcome=body.outcome,
+            propensity=body.propensity,
+            overlap=body.overlap,
+            detail=body.detail,
+        )
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/activate")
+    def strategy_activate(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.activate")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).activate(strategy_id)
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/retire")
+    def strategy_retire(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.retire")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).retire(strategy_id)
+
+    @app.post(f"{pref}/strategies/propensity")
+    def strategy_propensity(
+        body: StrategyPropensityIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.propensity")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+        from cognitive_memory.strategy.propensity import compute_propensity
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        scope = dict(body.scope or {})
+        if body.strategy_id:
+            strat = StrategyStore(service.db).get(body.strategy_id)
+            if not strat:
+                return {"ok": False, "detail": "strategy_not_found"}
+            if not scope:
+                scope = dict(strat.get("scope") or {})
+        store = ExperienceStore(service.db)
+        exps: list[dict[str, Any]] = []
+        if body.experience_ids:
+            for eid in body.experience_ids:
+                row = store.get(eid)
+                if row:
+                    exps.append(row)
+        else:
+            exps = store.list(limit=100)
+        prop = compute_propensity(exps, strategy_scope=scope)
+        return {"ok": True, "strategy_id": body.strategy_id, "propensity": prop}
+
+    @app.post(f"{pref}/strategies/offline-eval")
+    def strategy_offline_eval(
+        body: StrategyOfflineEvalIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.offline_eval")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.offline_eval import run_offline_eval
+
+        _ = access
+        return run_offline_eval(
+            service.db,
+            body.strategy_id,
+            persist_propensity=body.persist_propensity,
+            log_result=body.log_result,
+        )
+
+    @app.post(f"{pref}/meta/schedule")
+    def meta_schedule(
+        body: MetaControllerIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="meta.schedule")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.metacontroller import schedule
+
+        _ = access
+        return schedule(service.db, action=body.action, strategy_id=body.strategy_id)
 
     @app.get(f"{pref}/schemas")
     def schemas_list(

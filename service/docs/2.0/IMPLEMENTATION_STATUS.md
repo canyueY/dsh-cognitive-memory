@@ -13,6 +13,7 @@
 | P2 Claim Vertical Slice | **COMPLETED** |
 | P3 Evidence Objects | **NEAR COMPLETE**（live eval 已通） |
 | P4 Truth Maintenance | **NEAR COMPLETE**（Schema impact + tombstone 级联已接） |
+| P5 Strategy / Experience | **IN PROGRESS**（表 + propensity + 门控 offline eval） |
 
 ## P2 Claim Vertical Slice — COMPLETED
 
@@ -66,4 +67,21 @@
 
 ### 下一步
 
-合入 PR #1；禁止 LLM Verified / 生产回填；P5+ Strategy 另立项。
+合入 PR #1；禁止 LLM Verified / 生产回填。
+
+## P5 Strategy / Experience — IN PROGRESS
+
+### 已完成
+
+- 契约：`docs/2.0/contracts/strategy.md` + `STRATEGY_DRAFT.md`
+- 迁移 `012_strategy_v1`：`experiences` / `strategies` / `strategy_logs`
+- `strategy/`：ExperienceStore、StrategyStore、propensity、offline_eval、metacontroller
+- `record_feedback_sample` → 落盘 Experience（仍不训练）
+- ACTIVE / offline eval / RL train+deploy 仍走 Capability Gate（默认 LOCKED）
+- API：`/experiences`、`/strategies*`、`/strategies/propensity`、`/strategies/offline-eval`、`/meta/schedule`
+- 测试：`test_p5_strategy.py`
+
+### 未完成
+
+- online A/B / 完整 MetaController 自治
+- 合入 PR #1（需确认）

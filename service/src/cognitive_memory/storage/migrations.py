@@ -485,6 +485,54 @@ MIGRATIONS: list[tuple[str, str]] = [
         );
         """,
     ),
+    (
+        "012_strategy_v1",
+        """
+        -- P5 Experience / Strategy / StrategyLog
+        CREATE TABLE IF NOT EXISTS experiences (
+          id TEXT PRIMARY KEY,
+          bank_id TEXT NOT NULL DEFAULT 'personal',
+          context_json TEXT NOT NULL DEFAULT '{}',
+          action_json TEXT NOT NULL DEFAULT '{}',
+          outcome_json TEXT NOT NULL DEFAULT '{}',
+          memory_ids_json TEXT NOT NULL DEFAULT '[]',
+          claim_ids_json TEXT NOT NULL DEFAULT '[]',
+          reward REAL,
+          source TEXT NOT NULL DEFAULT 'manual',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_experiences_bank
+          ON experiences(bank_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS strategies (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          scope_json TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'proposed',
+          propensity_json TEXT NOT NULL DEFAULT '{}',
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_strategies_status
+          ON strategies(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS strategy_logs (
+          id TEXT PRIMARY KEY,
+          strategy_id TEXT NOT NULL,
+          experience_id TEXT,
+          decision TEXT NOT NULL DEFAULT '',
+          outcome TEXT NOT NULL DEFAULT '',
+          propensity REAL,
+          overlap REAL,
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_strategy_logs_sid
+          ON strategy_logs(strategy_id, created_at);
+        """,
+    ),
 ]
 
 

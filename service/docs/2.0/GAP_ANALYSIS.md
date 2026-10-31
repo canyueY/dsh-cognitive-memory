@@ -94,7 +94,8 @@ memory_id + observation_id + relation
 - propensity/overlap；
 - 离线评估。
 
-**P5+ 决策：** 不在 P2 实现；先保留 events 作为原始素材。
+**P5+ 决策：** 不在 P2 实现；先保留 events 作为原始素材。  
+**P5 进展（2026-10-31）：** first-class Experience/Strategy/StrategyLog + propensity/overlap + 门控 offline eval 已落地；online RL / 自动 ACTIVE 仍禁止。
 
 ---
 
