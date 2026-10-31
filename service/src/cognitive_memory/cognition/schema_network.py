@@ -53,6 +53,13 @@ def impact_of_schema(service: MemoryService, schema_id: str) -> dict[str, Any]:
                 plans.append({"id": p.get("id"), "operation": p.get("operation"), "status": p.get("status")})
     except Exception:
         plans = []
+    tms_pack: dict[str, Any] | None = None
+    try:
+        from cognitive_memory.tms.schema_bridge import analyze_schema_impact_tms
+
+        tms_pack = analyze_schema_impact_tms(service, schema_id)
+    except Exception:
+        tms_pack = None
     return {
         "ok": True,
         "schema_id": schema_id,
@@ -63,6 +70,8 @@ def impact_of_schema(service: MemoryService, schema_id: str) -> dict[str, Any]:
         "neighbors": neighbors,
         "related_plans": plans,
         "impact_score": len(supporting) + len(counter) + len(neighbors) + len(plans),
+        "tms": tms_pack,
+        "note": "neighbors+plans 计数 + TMS 重评预览；无自动覆盖",
     }
 
 

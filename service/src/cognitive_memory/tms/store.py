@@ -9,7 +9,7 @@ from typing import Any
 
 from cognitive_memory.storage.db import Database
 from cognitive_memory.tms.engine import TruthMaintenanceEngine
-from cognitive_memory.tms.models import BeliefStatus, Justification
+from cognitive_memory.tms.models import Belief, BeliefStatus, Justification
 
 
 def _now() -> str:
@@ -107,6 +107,27 @@ class TmsStore:
             "propagate": prop.model_dump(mode="json"),
         }
 
+    def get_belief(self, node_id: str) -> Belief:
+        """Prefer persisted belief (cross-instance), else in-memory engine."""
+        with self.db.exclusive() as conn:
+            row = conn.execute(
+                "SELECT status, reason_codes_json FROM tms_beliefs WHERE node_id=?",
+                (node_id,),
+            ).fetchone()
+            if conn.in_transaction:
+                conn.commit()
+        if row:
+            try:
+                codes = json.loads(row["reason_codes_json"] or "[]")
+            except json.JSONDecodeError:
+                codes = []
+            return Belief(
+                node_id=node_id,
+                status=BeliefStatus(str(row["status"])),
+                reason_codes=list(codes) if isinstance(codes, list) else [],
+            )
+        return self.engine.belief(node_id)
+
     def invalidate_node(
         self,
         node_id: str,
@@ -123,10 +144,11 @@ class TmsStore:
         prop = self.engine.propagate([node_id])
         for ch in prop.changed:
             self.persist_belief(ch["node_id"], BeliefStatus(ch["to"]), ["invalidate", reason])
+        self.engine._belief[node_id] = BeliefStatus.OUT
         self.persist_belief(node_id, BeliefStatus.OUT, [reason, actor or "system"])
         return {
             "ok": True,
             "node_id": node_id,
-            "belief": self.engine.belief(node_id).model_dump(mode="json"),
+            "belief": self.get_belief(node_id).model_dump(mode="json"),
             "propagate": prop.model_dump(mode="json"),
         }

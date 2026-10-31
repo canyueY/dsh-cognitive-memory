@@ -12,7 +12,7 @@
 | P1.5 Governance Closure | **COMPLETED** |
 | P2 Claim Vertical Slice | **COMPLETED** |
 | P3 Evidence Objects | **NEAR COMPLETE**（live eval 已通） |
-| P4 Truth Maintenance | **IN PROGRESS**（Justification/SCC/预算传播 + Claim 接线） |
+| P4 Truth Maintenance | **NEAR COMPLETE**（Schema impact + tombstone 级联已接） |
 
 ## P2 Claim Vertical Slice — COMPLETED
 
@@ -46,23 +46,24 @@
 - 语义旁路 online A/B 指标（可选）
 - 合入 PR #1（需确认）
 
-## P4 Truth Maintenance — IN PROGRESS
+## P4 Truth Maintenance — NEAR COMPLETE
 
 ### 已完成
 
 - 契约：`docs/2.0/contracts/tms.md` + `TMS_DRAFT.md`
 - `tms/`：Justification AND/OR、Tarjan SCC、预算传播、impact preview
-- 迁移 `011_tms_v1` + `TmsStore` 持久化
-- Claim 接线：verify→support justification；dispute/redirect→invalidate+propagate
-- API：`POST /tms/justifications`、`POST /tms/propagate`、`GET /tms/belief/{id}`
-- 测试：`test_p4_tms.py`（9 passed）；全量 **153** passed
+- 迁移 `011_tms_v1` + `TmsStore` 持久化（`get_belief` 跨实例读库）
+- Claim 接线：verify→support；dispute/redirect→invalidate
+- Schema：`analyze_impact` / `impact_of_schema` → TMS 重评预览（`auto_overwrite=false`）
+- R17：`forget_memory` → Claim superseded tombstone + Evidence revoked + TMS OUT（不硬删 Claim）
+- API：`/tms/justifications|propagate|belief/{id}`
+- 测试：`test_p4_*`（11）；全量 **155** passed
 
 ### 未完成
 
-- Schema impact 全量替换 `analyze_impact` stub
-- 删除/tombstone 级联（R17）
-- 合入 PR #1
+- 合入 PR #1（需确认）
+- online A/B（可选）
 
 ### 下一步
 
-Schema/Evidence 级联与 tombstone；合入 PR；禁止 LLM Verified / 生产回填。
+合入 PR #1；禁止 LLM Verified / 生产回填；P5+ Strategy 另立项。

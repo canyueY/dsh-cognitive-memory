@@ -929,7 +929,7 @@ def create_app(
         ),
     ) -> dict[str, Any]:
         _ = access
-        bel = _claim_store().tms.engine.belief(node_id)
+        bel = _claim_store().tms.get_belief(node_id)
         impact = _claim_store().tms.engine.impact(node_id)
         return {"ok": True, "belief": bel.model_dump(mode="json"), "impact": impact}
 

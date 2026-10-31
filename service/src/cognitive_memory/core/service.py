@@ -585,12 +585,24 @@ class MemoryService:
             return mem
 
     def forget_memory(self, memory_id: str, *, hard: bool = False) -> dict[str, Any]:
-        """软删除默认：invalidated；hard=True 时清理主表+FTS+证据（版本保留审计）。"""
+        """软删除默认：invalidated；hard=True 时清理主表+FTS+证据（版本保留审计）。
+
+        P4 R17：级联 Claim/Evidence tombstone + TMS invalidate（Claim 行保留）。
+        """
         if not hard:
-            return self.update_memory(
+            out = self.update_memory(
                 memory_id,
                 MemoryUpdateIn(status=MemoryStatus.INVALIDATED),
             ).model_dump()
+            try:
+                from cognitive_memory.tms.tombstone import cascade_memory_invalidated
+
+                out["cascade"] = cascade_memory_invalidated(
+                    self.db, memory_id, hard=False, actor="forget_memory"
+                )
+            except Exception as exc:  # noqa: BLE001 — cascade best-effort
+                out["cascade_error"] = str(exc)
+            return out
         with self.db.transaction() as conn:
             row = conn.execute("SELECT * FROM memories WHERE id=?", (memory_id,)).fetchone()
             if not row:
@@ -600,7 +612,16 @@ class MemoryService:
             conn.execute("DELETE FROM memory_feedback WHERE memory_id=?", (memory_id,))
             conn.execute("DELETE FROM memories WHERE id=?", (memory_id,))
             self._emit(conn, "memory.invalidated", {"memory_id": memory_id, "hard": True})
-            return {"id": memory_id, "deleted": True, "hard": True}
+        pack: dict[str, Any] = {"id": memory_id, "deleted": True, "hard": True}
+        try:
+            from cognitive_memory.tms.tombstone import cascade_memory_invalidated
+
+            pack["cascade"] = cascade_memory_invalidated(
+                self.db, memory_id, hard=True, actor="forget_memory"
+            )
+        except Exception as exc:  # noqa: BLE001
+            pack["cascade_error"] = str(exc)
+        return pack
 
     def search(self, q: SearchQuery) -> list[Memory]:
         from cognitive_memory.memory.banks import resolve_search_banks

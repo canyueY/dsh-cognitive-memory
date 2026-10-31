@@ -70,34 +70,7 @@ def analyze_impact(
     service: MemoryService,
     schema_id: str,
 ) -> dict[str, Any]:
-    """影响传播分析 stub：读 relations，生成重评任务列表（不递归改写）。"""
-    sch = service.get_cognitive_schema(schema_id)
-    if not sch:
-        return {"ok": False, "detail": "schema_not_found"}
-    rel = sch.get("relations") or {}
-    affected: list[dict[str, Any]] = []
-    for kind in (
-        "supports",
-        "contradicts",
-        "generalizes",
-        "specializes",
-        "dependsOn",
-        "refines",
-    ):
-        for nid in rel.get(kind) or []:
-            affected.append(
-                {
-                    "node_id": nid,
-                    "relation": kind,
-                    "action": "reevaluate",
-                    "auto_overwrite": False,
-                }
-            )
-    return {
-        "ok": True,
-        "changed_schema_id": schema_id,
-        "affected": affected,
-        "count": len(affected),
-        "note": "仅生成重评任务；禁止无条件递归覆盖",
-        "generated_at": _now(),
-    }
+    """P4：TMS 影响预览 + 重评任务；禁止无条件递归覆盖。"""
+    from cognitive_memory.tms.schema_bridge import analyze_schema_impact_tms
+
+    return analyze_schema_impact_tms(service, schema_id)
