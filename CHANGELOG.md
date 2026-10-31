@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **DSH 0.2.1 宿主接口兼容**
+  - `engines.dsh: >=0.2.1-0 <0.3.0`（含 rc；准入以 `engines.dsh` 为准）
+  - `dsh.manifestVersion: 1`；peer `@deepseek-ai/dsh-tools` 对齐 0.2.1
+  - tool `output.schema` 改为合法 JsonSchemaNode（去掉非法 `type: "json"`）
+  - `execute(args, exec)` 转发 `exec.signal` 到 MemoryClient
+
 ## 3.0.0
 
 - 合并 `canyueY/mnemosyne` 2.0 Node 到 `canyueY/dsh-mnemosyne`，建立 3.0 单一权威仓

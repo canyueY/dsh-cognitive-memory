@@ -102,90 +102,90 @@ export async function apply(ctx) {
   const tools = [
     defineTool({
       ...healthToolSpec(),
-      async execute() {
+      async execute(_args, exec) {
         const c = await ensureClient();
-        return c.health();
+        return c.health({ signal: exec?.signal });
       },
     }),
     defineTool({
       ...searchToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
         return c.search({
           query: args.query,
           limit: args.limit ?? 10,
           types: args.types,
-        });
+        }, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...getToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
-        return c.get(args.id, Boolean(args.include_evidence));
+        return c.get(args.id, Boolean(args.include_evidence), { signal: exec?.signal });
       },
     }),
     defineTool({
       ...contextToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
         return c.context({
           query: args.query,
           token_budget: args.token_budget,
-        });
+        }, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...proposeToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
         return c.propose({
           content: args.content,
           type: args.type || 'semantic',
           source_ids: args.source_ids || [],
           status: args.status || 'candidate',
-        });
+        }, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...feedbackToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
-        return c.feedback(args);
+        return c.feedback(args, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...updateToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
         const { id, ...rest } = args;
-        return c.update(id, rest);
+        return c.update(id, rest, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...forgetToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
-        return c.forget(args.id, Boolean(args.hard));
+        return c.forget(args.id, Boolean(args.hard), { signal: exec?.signal });
       },
     }),
     defineTool({
       ...taskToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
-        return c.task(args.id);
+        return c.task(args.id, { signal: exec?.signal });
       },
     }),
     defineTool({
       ...observeToolSpec(),
-      async execute(args) {
+      async execute(args, exec) {
         const c = await ensureClient();
         return c.observe({
           content: args.content,
           source_kind: args.source_kind || 'dialog',
           correlation_id: args.correlation_id,
           producer: args.producer || 'dsh.agent',
-        });
+        }, { signal: exec?.signal });
       },
     }),
   ];
