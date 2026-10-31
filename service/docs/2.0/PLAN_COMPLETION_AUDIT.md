@@ -2,49 +2,30 @@
 
 **任务书：** `10.31更新方案.txt`（2143 行）  
 **任务书基线：** `c82d47e`  
-**当前代码：** `9eb9b93`（P2–P7 + DSH 0.2.1 修复）  
-**当前文档：** `d59fa21`（含宿主 E2E 记录）  
+**当前代码：** `e3a218b`（P2/P7 收口）+ `db9d092`（时间追溯）  
 **审计日期：** 2026-10-31  
-**结论：** **不能按任务书宣称“全部完成”。** 代码主干推进很大，但任务书中的 P7、P8、P9 仍未达到验收条件；P2 也有明确缺口。
+**结论：** **P2 已接近完成；P7 从“缺失”推进到“进行中”；P8 部分完成；P9 未开始。不能按任务书宣称全部完成。**
 
 ---
 
 ## 1. 总体判断
 
-当前仓库的 `IMPLEMENTATION_STATUS.md` 写的是：
+当前 `IMPLEMENTATION_STATUS.md` 已区分“仓库阶段名”和“任务书阶段名”，不再把 GA 脚本误标为任务书 P7。
+
+当前真实状态：
 
 ```text
-P0–P1.5 COMPLETED
-P2 COMPLETED
-P3 COMPLETED
-P4 COMPLETED
-P5 COMPLETED
-P6 COMPLETED
-P7 COMPLETED（脚本；人工现网签字外置）
+P0 / P0.5 / P1.5        COMPLETED
+P1 Contract Freeze      PARTIAL
+P2 Claim Vertical Slice NEAR COMPLETE
+P3 / P4 / P5             COMPLETED（代码层）
+P6 Strategy Eval         PARTIAL
+P7 Fault Localization    IN PROGRESS
+P8 Security/DSH           PARTIAL
+P9 Migration/Release      MISSING
 ```
 
-但这套编号**不是任务书的编号**。
-
-任务书的阶段是：
-
-```text
-P0 Audit
-P0.5 Migration Spike
-P1 Contract Freeze
-P1.5 Governance Closure
-P2 Claim Vertical Slice
-P3 Evidence Independence
-P4 Knowledge & Truth Maintenance
-P5 Experience & Strategy
-P6 Strategy Evaluation & MetaController
-P7 Fault Localization & Repair Validation
-P8 Security Hardening & DSH Integration
-P9 Migration & Release
-```
-
-仓库把 Knowledge 放到 P6、把 GA 检查放到 P7，导致“P7 COMPLETED”并不等于任务书的 P7 完成。
-
-> **准确说法：** P0–P6 的大部分代码与测试已经落地；任务书的 P7、P8、P9 仍缺失或只有局部实现。
+> **准确说法：** P2 的主体能力已补齐，P7 已有真实 fault pipeline；但 P2 仍需逐项验收，P7 仍未 GA，P8/P9 仍是明确缺口。
 
 ---
 
