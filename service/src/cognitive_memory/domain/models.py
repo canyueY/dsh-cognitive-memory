@@ -286,6 +286,32 @@ class ClaimRedirectIn(BaseModel):
     reason: str = "merge"
 
 
+class ClaimMergeIn(BaseModel):
+    target_id: str
+    reason: str = "claim_merge"
+    move_evidence: bool = True
+
+
+class ClaimSplitIn(BaseModel):
+    parts: list[str] = Field(default_factory=list)
+    reason: str = "claim_split"
+    bank_id: str | None = None
+
+
+class ClaimRelateIn(BaseModel):
+    other_id: str
+
+
+class ClaimParseIn(BaseModel):
+    text: str
+
+
+class FaultPipelineIn(BaseModel):
+    claim_id: str
+    apply_tombstone_repair: bool = False
+    run_regression: bool = True
+
+
 class ClaimVerifyIn(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     actor: str = ""

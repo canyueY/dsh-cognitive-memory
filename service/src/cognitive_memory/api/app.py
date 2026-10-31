@@ -20,10 +20,15 @@ from cognitive_memory.domain.models import (
     ChangePlanApplyIn,
     ChangePlanBuildIn,
     ClaimEvidenceIn,
+    ClaimMergeIn,
+    ClaimParseIn,
     ClaimProposeIn,
     ClaimRedirectIn,
+    ClaimRelateIn,
+    ClaimSplitIn,
     ClaimTransitionIn,
     ClaimVerifyIn,
+    FaultPipelineIn,
     EvidenceIndependenceIn,
     EvidenceObjectCreateIn,
     AbAssignIn,
@@ -779,6 +784,26 @@ def create_app(
             app.state.claim_store = ClaimStore(service.db)
         return app.state.claim_store
 
+    @app.post(f"{pref}/claims/parse")
+    def claims_parse(
+        body: ClaimParseIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.parse")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.claims.parser import parse_memory_text
+
+        _ = access
+        parsed = parse_memory_text(body.text)
+        return {
+            "ok": True,
+            "ast": parsed.ast.model_dump(mode="json"),
+            "confidence": parsed.confidence,
+            "notes": parsed.notes,
+            "persisted": False,
+            "note": "parse_only_never_verified",
+        }
+
     @app.post(f"{pref}/claims/propose")
     def claims_propose(
         body: ClaimProposeIn,
@@ -872,6 +897,94 @@ def create_app(
     ) -> dict[str, Any]:
         _ = access
         return _claim_store().redirect(claim_id, body.target_id, reason=body.reason)
+
+    @app.post(f"{pref}/claims/{{claim_id}}/merge")
+    def claims_merge(
+        claim_id: str,
+        body: ClaimMergeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.merge")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().merge(
+            claim_id,
+            body.target_id,
+            reason=body.reason,
+            move_evidence=body.move_evidence,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/split")
+    def claims_split(
+        claim_id: str,
+        body: ClaimSplitIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.split")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().split(
+            claim_id,
+            body.parts,
+            reason=body.reason,
+            bank_id=body.bank_id,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/relations")
+    def claims_relations(
+        claim_id: str,
+        body: ClaimRelateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.relations")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().relate(claim_id, body.other_id)
+
+    @app.post(f"{pref}/fault/pipeline")
+    def fault_pipeline(
+        body: FaultPipelineIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="fault.pipeline")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.fault.pipeline import run_fault_pipeline
+
+        _ = access
+
+        def _repair() -> dict[str, Any]:
+            # Safe repair: if redirect missing tombstone lifecycle, force superseded
+            store = _claim_store()
+            claim = store.get(body.claim_id, follow_redirect=False)
+            if not claim:
+                return {"ok": False, "detail": "claim_not_found"}
+            if claim.get("redirects_to") and claim.get("lifecycle") not in (
+                "superseded",
+                "invalidated",
+            ):
+                return store.redirect(
+                    body.claim_id,
+                    str(claim["redirects_to"]),
+                    reason="fault_repair_tombstone",
+                )
+            if (
+                claim.get("verification_status") == "verified"
+                and claim.get("lifecycle") != "verified"
+            ):
+                return store.transition(
+                    body.claim_id,
+                    "verified",
+                    reason="fault_repair_lifecycle_align",
+                    actor=access.actor_id,
+                )
+            return {"ok": True, "detail": "no_auto_repair_applied"}
+
+        return run_fault_pipeline(
+            service.db,
+            claim_id=body.claim_id,
+            patch_fn=_repair if body.apply_tombstone_repair else None,
+            run_regression=body.run_regression,
+        )
 
     @app.post(f"{pref}/claims/{{claim_id}}/verify")
     def claims_verify(

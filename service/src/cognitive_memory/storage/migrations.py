@@ -593,6 +593,34 @@ MIGRATIONS: list[tuple[str, str]] = [
         );
         """,
     ),
+    (
+        "015_fault_v1",
+        """
+        -- Task-book P7 Fault Localization & Repair Validation
+        CREATE TABLE IF NOT EXISTS fault_cases (
+          id TEXT PRIMARY KEY,
+          status TEXT NOT NULL DEFAULT 'open',
+          invariant_code TEXT NOT NULL,
+          subject_refs_json TEXT NOT NULL DEFAULT '[]',
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_fault_cases_status
+          ON fault_cases(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS fault_stages (
+          id TEXT PRIMARY KEY,
+          fault_id TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          ok INTEGER NOT NULL DEFAULT 1,
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_fault_stages_fault
+          ON fault_stages(fault_id, created_at);
+        """,
+    ),
 ]
 
 
