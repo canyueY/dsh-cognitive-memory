@@ -34,11 +34,17 @@
 - `ClaimStore.semantic_suggest` + `POST /claims/semantic-suggest`（永不 Verified）
 - 测试：`test_p3_evidence_objects` + `test_p3_semantic_sidepath`
 
+### 已完成（续）
+
+- Live RO eval：`retrieval/live_eval.py` + 报告  
+  `docs/2.0/fixtures/shadow_replay/P3_LIVE_EVAL_REPORT.md`  
+  paraphrase 25 查询：fts_recall_avg=0.80，assist_novel_rate=0.12；evidence 50→partial 50，complete=0
+
 ### 未完成
 
-- 生产库只读 Evidence / semantic eval 抽样报告
 - 语义旁路 online A/B 指标（可选）
+- 合入 PR #1（需确认）
 
 ### 下一步
 
-合入 PR #1；可选 live eval 报告；禁止 LLM Verified / 生产回填；P4 TMS 另立项。
+合入 PR #1；P4 TMS 另立项；禁止 LLM Verified / 生产回填。

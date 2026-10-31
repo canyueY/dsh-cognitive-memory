@@ -100,12 +100,13 @@ def evaluate_assist(
     relevant_ids: list[str],
     pool: list[dict[str, Any]],
     limit: int = 5,
+    min_score: float = 0.2,
 ) -> dict[str, Any]:
     """Offline eval: does assist recover relevant ids FTS missed? Never writes."""
     rel = set(relevant_ids)
     fts = set(fts_ids)
     fts_hit = len(rel & fts)
-    sug = pool_suggest(query, pool, limit=limit)
+    sug = pool_suggest(query, pool, limit=limit, min_score=min_score)
     sug_ids = {str(x.get("id")) for x in sug.get("items") or []}
     assist_only = (rel & sug_ids) - fts
     return {
@@ -114,5 +115,6 @@ def evaluate_assist(
         "fts_recall": fts_hit / max(1, len(rel)),
         "assist_novel_hits": sorted(assist_only),
         "assist_novel_count": len(assist_only),
+        "semantic_hit_ids": sorted(rel & sug_ids),
         "note": "eval_only_no_persist",
     }
