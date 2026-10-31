@@ -31,6 +31,7 @@
     "service",
     "README.md",
     "CHANGELOG.md",
+    "MIGRATION_3.0.md",
     "LICENSE",
     "cordis.patch.yml",
     "dsh.plugin.json"
