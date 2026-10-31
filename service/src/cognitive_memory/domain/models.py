@@ -383,6 +383,35 @@ class AbReportIn(BaseModel):
     limit: int = 500
 
 
+class KnowledgeProposeIn(BaseModel):
+    kind: str
+    name: str
+    description: str = ""
+    claim_ids: list[str] = Field(default_factory=list)
+    schema_id: str | None = None
+    strategy_id: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    scope: dict[str, Any] = Field(default_factory=dict)
+    security: dict[str, Any] = Field(default_factory=dict)
+    status: str = "proposed"
+
+
+class KnowledgeStatusIn(BaseModel):
+    status: str
+
+
+class KnowledgeFromSchemaIn(BaseModel):
+    schema_id: str
+    name: str = ""
+    as_pattern: bool = False
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ValueAdaptIn(BaseModel):
+    patch: dict[str, Any] = Field(default_factory=dict)
+    actor: str = "governance"
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""

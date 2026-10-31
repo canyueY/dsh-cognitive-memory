@@ -83,7 +83,8 @@ memory_id + observation_id + relation
 - 没有 scope/security；
 - 置信度是硬编码 delta。
 
-**P4 决策：** 在 Claim 稳定后，再将 Schema 降为 `StructuralKnowledge` 或 `PatternKnowledge` 的下游。
+**P4 决策：** 在 Claim 稳定后，再将 Schema 降为 `StructuralKnowledge` 或 `PatternKnowledge` 的下游。  
+**P6 进展（2026-10-31）：** `knowledge_nodes` 判别式类型 + validator + Schema demotion API 已落地；Knowledge.active ≠ Claim Verified。
 
 ### 2.5 Experience / Strategy
 

@@ -2,43 +2,42 @@
 
 **更新：** 2026-10-31  
 **仓库：** `canyueY/dsh-mnemosyne`  
-**基线：** `c82d47e` → 分支 `feat/p2-claim-vertical-slice`（PR #1）
+**main：** `b891230`（PR #1 MERGED）+ post-merge Knowledge/GA 收口
 
 | 阶段 | 状态 |
 |---|---|
-| P0 Repository Audit | COMPLETED |
-| P0.5 Migration Spike | **COMPLETED** |
-| P1 Semantic Contract Freeze | **COMPLETED** |
-| P1.5 Governance Closure | **COMPLETED** |
+| P0–P1.5 | **COMPLETED** |
 | P2 Claim Vertical Slice | **COMPLETED** |
 | P3 Evidence Objects | **COMPLETED** |
 | P4 Truth Maintenance | **COMPLETED** |
-| P5 Strategy / Experience | **COMPLETED**（online A/B + 有界 MetaController） |
+| P5 Strategy / Experience / A/B / MetaController | **COMPLETED** |
+| P6 Knowledge + gated RL/Value | **COMPLETED** |
+| P7 Claim-stack GA check | **COMPLETED**（脚本；人工现网签字仍外置） |
 
 ## 硬约束（仍生效）
 
 - 禁止静默 / LLM Verified
 - 禁止生产 DB 回填 / Memory·Bank 重建
 - `confirm` ≠ 授权；Claim forget → tombstone 不硬删
-- Strategy `ACTIVE` / RL train·deploy / A/B 写入需 Capability Gate（默认 LOCKED）
+- Strategy `ACTIVE` / RL / A/B / Value adapt 需 Capability Gate（默认 LOCKED）
+- Knowledge `active` ≠ Claim Verified ≠ Strategy deploy
+- 联邦 / 知识市场 → **2.1+**（禁止标完成）
 
-## P3 Evidence Objects — COMPLETED
+## P6 Knowledge / RL / Value — COMPLETED
 
-- Evidence objects + independence gate + semantic side-path（assistive only）
-- Live RO eval 报告；online A/B 指标经 `BANDIT_EXPERIMENT`（`013_ab_v1` + `/ab/*`）
+- `014_knowledge_v1`：`knowledge_nodes` + `value_soft_prefs`
+- 判别式类型：claim/rule/structural/pattern/strategy_knowledge + validator
+- Schema demotion → structural/pattern Knowledge
+- RL-B：Gate 后 propensity 统计拟合（不 ACTIVE）
+- RL-C：`deploy_policy(strategy_id)` → Strategy ACTIVE（独立 Gate）
+- V-B 多维压力报告；V-C 软偏好写入（硬约束拒绝）
 
-## P4 Truth Maintenance — COMPLETED
+## P7 GA — COMPLETED（自动化面）
 
-- TMS AND/OR + SCC + budget；Schema impact 预览；forget → Claim/Evidence tombstone + TMS OUT
+- `scripts/mnemosyne_claim_ga_check.py`：模块导入 + migrations 009–014 + 默认 Gate LOCKED
+- 报告：`tmp/mnemosyne_claim_ga_report.json`
+- 人工现网签字 / E6.5 试点不在本自动化范围
 
-## P5 Strategy / Experience — COMPLETED
+## API 增量
 
-- `012` Experience/Strategy/StrategyLog；propensity；门控 offline eval
-- 有界 MetaController：`reflect|reevaluate|reevaluate_all|propose_retire|recommend_activate|activate_if_authorized|ab_assign`
-- Online A/B：exposures/outcomes/report；retrieve `ab_experiment` opt-in
-- **永不**在 A/B 或 MetaController 中静默 ACTIVE / Verified
-
-## 下一步（仓库外）
-
-- 合入 PR #1 → `main`
-- 生产解锁 Gate 需外部治理显式操作
+`/knowledge*` · `/value/adapt` · `/ab/*` · `/strategies*` · `/experiences` · `/meta/schedule` · `/tms/*` · `/claims*`

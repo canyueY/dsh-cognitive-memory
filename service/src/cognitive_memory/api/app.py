@@ -30,6 +30,9 @@ from cognitive_memory.domain.models import (
     AbOutcomeIn,
     AbReportIn,
     ExperienceCreateIn,
+    KnowledgeFromSchemaIn,
+    KnowledgeProposeIn,
+    KnowledgeStatusIn,
     MetaControllerIn,
     StrategyLogIn,
     StrategyOfflineEvalIn,
@@ -37,6 +40,7 @@ from cognitive_memory.domain.models import (
     StrategyProposeIn,
     TmsJustificationIn,
     TmsPropagateIn,
+    ValueAdaptIn,
     CognitiveChangePlanApplyIn,
     CognitiveChangePlanIn,
     ContextBuildIn,
@@ -1183,6 +1187,90 @@ def create_app(
         _ = access
         return report(service.db, body.experiment_id, limit=body.limit)
 
+    # ---- Knowledge (Claim/Schema/Strategy downstream) ----
+    @app.post(f"{pref}/knowledge")
+    def knowledge_propose(
+        body: KnowledgeProposeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="knowledge.propose")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.knowledge.store import KnowledgeStore
+
+        _ = access
+        return KnowledgeStore(service.db).propose(
+            kind=body.kind,
+            name=body.name,
+            description=body.description,
+            claim_ids=body.claim_ids,
+            schema_id=body.schema_id,
+            strategy_id=body.strategy_id,
+            payload=body.payload,
+            scope=body.scope,
+            security=body.security,
+            status=body.status,
+        )
+
+    @app.get(f"{pref}/knowledge")
+    def knowledge_list(
+        kind: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="knowledge.list")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.knowledge.store import KnowledgeStore
+
+        _ = access
+        items = KnowledgeStore(service.db).list(kind=kind, status=status, limit=limit)
+        return {"ok": True, "items": items, "count": len(items)}
+
+    @app.get(f"{pref}/knowledge/{{knowledge_id}}")
+    def knowledge_get(
+        knowledge_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="knowledge.get")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.knowledge.store import KnowledgeStore
+
+        _ = access
+        row = KnowledgeStore(service.db).get(knowledge_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="knowledge_not_found")
+        return {"ok": True, "knowledge": row}
+
+    @app.post(f"{pref}/knowledge/{{knowledge_id}}/status")
+    def knowledge_status(
+        knowledge_id: str,
+        body: KnowledgeStatusIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="knowledge.status")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.knowledge.store import KnowledgeStore
+
+        _ = access
+        return KnowledgeStore(service.db).set_status(knowledge_id, body.status)
+
+    @app.post(f"{pref}/knowledge/from-schema")
+    def knowledge_from_schema(
+        body: KnowledgeFromSchemaIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="knowledge.from_schema")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.knowledge.store import KnowledgeStore
+
+        _ = access
+        return KnowledgeStore(service.db).from_schema(
+            body.schema_id,
+            name=body.name,
+            as_pattern=body.as_pattern,
+            payload=body.payload,
+        )
+
     @app.get(f"{pref}/schemas")
     def schemas_list(
         limit: int = 40,
@@ -1407,10 +1495,20 @@ def create_app(
         )
 
     @app.post(f"{pref}/value/advanced")
-    def value_advanced(_: None = Depends(require_token)) -> dict[str, Any]:
+    def value_advanced(
+        body: dict[str, Any] | None = None, _: None = Depends(require_token)
+    ) -> dict[str, Any]:
         from cognitive_memory.governance.value_system import run_advanced_value_evaluation
 
-        return run_advanced_value_evaluation(service.db, {})
+        return run_advanced_value_evaluation(service.db, dict(body or {}))
+
+    @app.post(f"{pref}/value/adapt")
+    def value_adapt(body: ValueAdaptIn, _: None = Depends(require_token)) -> dict[str, Any]:
+        from cognitive_memory.governance.value_system import adapt_value_model
+
+        patch = dict(body.patch or {})
+        patch["_actor"] = body.actor
+        return adapt_value_model(service.db, patch)
 
     # --- D8 Component Manager（本地源；安装 ≠ 授权）---
     from pathlib import Path as _Path
