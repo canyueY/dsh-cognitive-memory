@@ -152,7 +152,7 @@ pytest -q tests/unit/test_claim_temporal.py
 
 ```text
 pytest -q
-228 passed
+237 passed
 ```
 
 ## 7. 尚未完成

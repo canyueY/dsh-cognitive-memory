@@ -67,28 +67,24 @@ P9 Migration & Release
 
 ---
 
-## 3. P2 的具体缺口
+## 3. P2：已补 Merge/Split/Relation，仍有边界
 
-P2 文档标为 COMPLETED，但任务书 P2 要求：
+当前已具备：
 
-- Claim Merge；
-- Claim Split；
-- Redirect；
-- Relation 的 `supports` / `contradicts` / `qualifies`；
-- 20 项 Claim 测试；
-- 并发提交；
-- 重复请求。
+- `ClaimStore.merge()` / `split()` / `relate()`；
+- `/claims/parse`、`/claims/{id}/relations`、merge/split API；
+- `same_as` / `contradicts` / `qualifies` / `supports`；
+- S1–S20 矩阵（含并发提出、重复请求）；
+- P2 相关测试已合入。
 
-当前：
+仍需签字确认：
 
-- `claims/store.py` 有 `redirect()`；
-- `judgment/relations.py` 主要实现 `evaluate_same_as()`；
-- 没有发现 Claim merge/split 函数；
-- 没有发现 `/claims/parse`、`/claims/{id}/relations` 的完整 API；
-- `test_p2_claim_matrix.py` 是 S1–S14，不是任务书的 20 项；
-- 并发/重复请求主要依赖底层幂等，不是 Claim 专项测试。
+- 合并/拆分后的历史引用与权限继承；
+- 下游依赖/影响是否全部重评；
+- 20 项矩阵的逐项验收记录（测试存在 ≠ 验收完成）；
+- 真实语料上的关系语义评测。
 
-因此 P2 应标为 **PARTIAL**，而不是完成。
+因此 P2 现在是 **NEAR COMPLETE**，不是“全部完成”。
 
 ---
 
@@ -121,32 +117,28 @@ P0.5 已完成“发现问题”的任务，但它也证明 **P9 不能直接开
 
 ### P7 Fault Localization & Repair Validation
 
-任务书要求：
+当前已有：
 
 ```text
-Invariant Violation
-→ Earliest Deviation
-→ Differential Trace
-→ Minimal Reproduction
-→ Candidate Root Cause
-→ Patch
-→ Targeted Test
-→ Regression Test
-→ Historical Replay
-→ Rollback Test
-→ Governance
+src/cognitive_memory/fault/
+  invariants.py
+  models.py
+  pipeline.py
+  store.py
 ```
 
-当前没有：
+- `015_fault_v1`：`fault_cases` / `fault_stages`；
+- `test_p7_fault_pipeline.py` 覆盖 invariant → earliest → differential trace → minimal reproduction → root cause → patch → targeted/regression/replay/rollback → governance；
+- 注入 `redirect_without_tombstone` 并完成修复验证。
 
-- fault localization 模块；
-- differential trace；
-- minimal reproduction；
-- root cause 记录；
-- repair validation 记录；
-- 故障注入测试。
+当前状态是 **IN PROGRESS**：
 
-`IMPLEMENTATION_STATUS` 的 P7 实际是 `scripts/mnemosyne_claim_ga_check.py`，只是导入/迁移/Gate 检查，不是任务书的 P7。
+- 故障类型/注入面仍窄；
+- 无生产故障样本；
+- 非确定性故障复现率未统计；
+- 没有 GA 验收。
+
+它不是旧的 `mnemosyne_claim_ga_check.py`；但也不能因为 3 项测试就标 COMPLETED。
 
 ### P8 Security Hardening & DSH Integration
 
@@ -200,7 +192,7 @@ Invariant Violation
 | 15 | 故障定位/修复有复现/回归/回滚 | **部分**（P7 pipeline 已落地；注入面仍窄） |
 | 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，回放/完整性未全） |
 | 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，治理全链路未验） |
-| 18 | 3.0 基础功能兼容 | 通过（221 tests） |
+| 18 | 3.0 基础功能兼容 | 通过（237 tests） |
 | 19 | 历史迁移可回滚 | **未完成** |
 | 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P9 无） |
 
@@ -208,10 +200,10 @@ Invariant Violation
 
 ## 7. 实际验证结果
 
-在 `9eb9b93` 上执行：
+在 `e3a218b` + 时间追溯提交上执行：
 
 ```text
-pytest -q                        228 passed, 1 warning in 25.69s
+pytest -q                        237 passed, 1 warning in 26.56s
 npm test                         7 passed
 npm run check                    passed
 host-compat-021.mjs              2 passed
@@ -230,7 +222,7 @@ DSH 宿主：
 
 任务书完成度应表述为：
 
-> **P0–P6 的主体代码与测试已落地；P2 仍需补 Merge/Split/完整关系；P7 完全缺失；P8 只有部分安全与 DSH 集成；P9 尚未开始。**
+> **P0/P0.5/P1.5 完成；P2 接近完成；P3/P4/P5 代码层完成；P6 部分；P7 进行中；P8 部分；P9 未开始。**
 
 不能使用：
 
@@ -242,8 +234,8 @@ P0–P7 COMPLETED
 
 建议下一步优先级：
 
-1. 修正 `IMPLEMENTATION_STATUS.md` 的阶段编号和完成声明；
-2. 补齐 P2 Merge/Split、完整 Relation 判定与 20 项测试；
-3. 实现 P7 故障定位/修复验证（先做最小 invariant + fault injection）；
+1. 逐项签收 P2 的 S1–S20、合并/拆分权限与下游影响；
+2. 扩大 P7 故障注入面、非确定性复现率与 GA 验收；
+3. 完成时间追溯的 as-of 查询、Replay、下游自动重评；
 4. 再做 P9 的 dry-run 迁移和小规模试迁移；
 5. P8 补推理泄漏、缓存撤销、删除传播全链路。
