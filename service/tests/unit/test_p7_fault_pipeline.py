@@ -130,6 +130,26 @@ class P7FaultPipelineTests(unittest.TestCase):
         self.assertNotEqual(fixed["verification_status"], "verified")
         self.assertEqual(out["fault"]["status"], "validated")
 
+    def test_execute_rollback_drill(self) -> None:
+        c = self.store.propose_from_text("我喜欢夜航星")
+        inject_silent_verified_on_proposed(self.db, claim_id=c["claim_id"])
+        out = run_fault_pipeline(
+            self.db,
+            claim_id=c["claim_id"],
+            auto_repair=True,
+            run_regression=True,
+            execute_rollback=True,
+        )
+        self._assert_full_stages(out)
+        self.assertEqual(out["fault"]["status"], "rolled_back")
+        rb_stage = next(
+            s for s in out["fault"]["stages"] if s["stage"] == "rollback_test"
+        )
+        self.assertTrue(rb_stage["payload"].get("executed"))
+        # After rollback, verification remains unverified (never re-assert Verified)
+        fixed = self.store.get(c["claim_id"], follow_redirect=False)
+        self.assertNotEqual(fixed["verification_status"], "verified")
+
     def test_migration_015_tables(self) -> None:
         with self.db.transaction() as conn:
             names = {

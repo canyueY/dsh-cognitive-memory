@@ -2,10 +2,10 @@
 
 **任务书：** `10.31更新方案.txt`（2143 行）  
 **任务书基线：** `c82d47e`  
-**当前代码：** `feat/taskbook-p7-p8-p9-continue`（P7 加深 + P8 全链路 + P9 dry-run）  
-**基线合并：** `e3a218b`（PR #5）  
-**审计日期：** 2026-10-31（续）  
-**结论：** **仍不能按任务书宣称“全部完成”。** P7/P8 已近完成；P9 仅有 provenance 门禁 dry-run（complete_rate=0 禁止写生产）；P6 真实 prop 数据与发布/回滚演练仍缺。
+**当前代码：** `feat/taskbook-p6-p7-p8-p9-complete`（P6 rank + P7 rollback + P8 跨 Bank + P9 scratch trial）  
+**基线合并：** `486ab2e`（PR #6）  
+**审计日期：** 2026-10-31（续 2）  
+**结论：** **代码层主体已近完成，仍不能宣称任务书“全部完成”。** 真实产线 prop、as-of Replay、生产 Claim 迁移与现网发布签字仍外置。
 
 ---
 
@@ -60,10 +60,10 @@ P9 Migration & Release
 | P3 Evidence Independence | `evidence/object_store.py`、P3 测试、independence | **COMPLETED（代码层）** | 生产历史迁移未做 |
 | P4 Knowledge & Truth Maintenance | `tms/`、`knowledge/`、P4/P6 测试 | **COMPLETED（代码层）** | 生产规模验证未做 |
 | P5 Experience & Strategy | `strategy/`、Experience、StrategyLog、P5 测试 | **COMPLETED（代码层）** | 真实任务数据少 |
-| P6 Strategy Evaluation & MetaController | A/B、propensity、offline eval、metacontroller | **PARTIAL** | 真实 prop/overlap 数据不足；调度未做生产验证 |
-| P7 Fault Localization & Repair Validation | inject×4 + auto-repair + 全 stage | **NEAR COMPLETE** | 回滚仍为记录型演练；未接生产故障流 |
-| P8 Security Hardening & DSH Integration | disclosure + grant_cache + cascade 全链 | **NEAR COMPLETE** | 跨 Bank 授权系统测试可再扩 |
-| P9 Migration & Release | `claim_dry_run` provenance 门禁 | **PARTIAL** | 禁止写生产；缺批次试迁移/发布/回滚演练 |
+| P6 Strategy Evaluation & MetaController | propensity fixtures + `rank_candidates` + gated eval | **NEAR COMPLETE** | 真实产线 prop 外置 |
+| P7 Fault Localization & Repair Validation | inject×4 + auto-repair + **executable rollback** | **NEAR COMPLETE** | 未接生产故障流 |
+| P8 Security Hardening & DSH Integration | disclosure + cache revoke + cascade + **cross-bank opaque 404** | **NEAR COMPLETE** | Electron GUI 未验 |
+| P9 Migration & Release | dry-run 门禁 + **scratch trial 写入/一致性/回滚** | **NEAR COMPLETE（代码层）** | 生产写仍禁；现网发布外置 |
 
 ---
 
@@ -195,14 +195,14 @@ Invariant Violation
 | 10 | Evidence 失效触发增量 TMS | 通过（测试） |
 | 11 | Experience 记录真实轨迹 | 通过（代码/测试） |
 | 12 | Strategy 关联上下文/依据/结果 | 通过（代码/测试） |
-| 13 | 策略效果可验证 | **部分**（真实 prop/overlap 数据不足） |
-| 14 | MetaController 调度 | **部分**（有实现，生产验证不足） |
-| 15 | 故障定位/修复有复现/回归/回滚 | **通过（代码/演练）**；生产回滚未跑 |
-| 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，回放/完整性未全） |
-| 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，治理全链路未验） |
-| 18 | 3.0 基础功能兼容 | 通过（247 tests） |
-| 19 | 历史迁移可回滚 | **部分**（dry-run 门禁有；写路径/回滚演练无） |
-| 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P8/P9 dry-run 已测；发布验收未做） |
+| 13 | 策略效果可验证 | **通过（代码/夹具）**；真实产线 prop 外置 |
+| 14 | MetaController 调度 | **通过（代码/`rank_candidates`）**；生产调度外置 |
+| 15 | 故障定位/修复有复现/回归/回滚 | **通过（含可执行 rollback drill）** |
+| 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，as-of Replay 未全） |
+| 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，GUI 未验） |
+| 18 | 3.0 基础功能兼容 | 通过（256 tests） |
+| 19 | 历史迁移可回滚 | **通过（scratch trial）**；生产迁移仍禁 |
+| 20 | 核心能力有自动化测试和阶段验收 | **部分**（代码验收齐；现网发布外置） |
 
 ---
 
@@ -211,7 +211,7 @@ Invariant Violation
 在本轮分支上执行：
 
 ```text
-pytest -q                        247 passed in 20.65s
+pytest -q                        256 passed in 23.43s
 ```
 
 DSH 宿主：
@@ -226,7 +226,7 @@ DSH 宿主：
 
 任务书完成度应表述为：
 
-> **P0–P5 / P7–P8 主体已近完成；P1/P2 近完成；P6 缺真实 prop；P9 仅 dry-run 门禁（provenance_complete=0 禁止写生产）。**
+> **P0–P9 代码层主体已近完成（含 P6 rank、P7 可执行回滚、P8 跨 Bank、P9 scratch trial）。仍外置：真实产线 prop、as-of Replay、生产 Claim 迁移、现网发布签字。provenance_complete=0 时禁止生产写。**
 
 不能使用：
 
@@ -234,11 +234,11 @@ DSH 宿主：
 P0–P9 COMPLETED
 ```
 
-来代表任务书全部完成。
+来代表任务书含现网发布的全部完成。
 
-建议下一步优先级：
+建议下一步（外置）：
 
-1. P9：provenance 重建方案 + 小规模只读试迁移报告（仍禁止自动 Verified）；
-2. P6：真实 propensity/overlap 数据与 MetaController 调度验证；
-3. P8：跨 Bank 授权系统测试扩面；
-4. 发布/回滚演练与人工现网签字（外置）。
+1. provenance 重建后的受控小规模生产试迁移（仍禁止 auto-Verified）；
+2. as-of / Replay 与下游自动重评；
+3. 真实产线 propensity 观测；
+4. 发布/回滚演练与人工现网签字。

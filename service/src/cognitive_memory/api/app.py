@@ -853,7 +853,10 @@ def create_app(
             )
             principal.bank_id = bank
         else:
-            principal = access.to_security_context(default_bank=bank)
+            # Agent principal bank MUST come from grant, never from object bank
+            # (object-bank-as-default would leak cross-bank existence).
+            agent_primary = (access.banks or ["personal"])[0]
+            principal = access.to_security_context(default_bank=agent_primary)
         pack = _claim_store().get(claim_id, principal=principal)
         if not pack:
             raise HTTPException(status_code=404, detail=opaque_not_found(resource="claim"))
