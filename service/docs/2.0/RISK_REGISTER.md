@@ -17,11 +17,11 @@
 | R09 | 历史数据 57k evidence 基本 unverified | High | 57,163 unverified / 6 supports | 迁移会把历史噪声带入 Claim；不能自动 Verified | P0.5 100 条分层 spike；provenance_unknown |
 | R10 | Schema 无 Bank/权限范围 | High | `cognitive_schemas` 无 `bank_id`/security | 跨 Bank 知识泄漏 | 与 R04 一起修 |
 | R11 | Claim/Schema 无合并/重定向协议 | High | 无 Claim 表；Schema split/merge 只做 `network_links` | 旧 ID 失效、引用断裂、权限绕过 | P1 冻结 merge/split/redirect |
-| R12 | Semantic 检索未接入主路径 | Medium | `semantic.py` 只有可选测试；`service.search` 走 FTS/LIKE | 语义召回能力被高估 | P3 接入并评估，不替代证据 |
+| R12 | Semantic 检索未接入主路径 | Medium | ~~仅可选~~ → P3 `semantic_assist` 旁路 + live eval + 门控 A/B | 语义召回能力被高估 | **CLOSED**（assistive only；不替代证据） |
 | R13 | `SearchQuery` 无 domain 过滤 | Medium | `SearchQuery` 字段无 `domain` | 音乐/领域闸门无法在 Node 执行 | 增加 domain filter 或统一 metadata policy |
 | R14 | 队列积压与存储增长 | Medium | 2,538 pending outbox；3,194 pending tasks；548 MB | 延迟、磁盘增长、worker 阻塞 | P0 补排空/retention/监控 |
 | R15 | 测试覆盖与 2.0 不匹配 | High | 122 tests，但无 Claim/Visibility/Verification/TMS | 回归通过会制造“已完成”错觉 | P1 建 Claim 测试矩阵；P2 门禁 |
-| R16 | 文档与实现存在张力 | Medium | README/2.0 矩阵描述大于 Claim 实际能力 | 对外误导、错误规划 | 在 README 标注 Claim 未实现；审计文档为准 |
+| R16 | 文档与实现存在张力 | Medium | ~~矩阵超前~~ → IMPLEMENTATION_STATUS / docs/2.0 README 与 P0–P7 对齐 | 对外误导、错误规划 | **CLOSED**（2026-10-31） |
 | R17 | 无对象级删除传播 | High | ~~仅 forget~~ → `cascade_memory_invalidated`：Claim superseded tombstone + Evidence revoked + TMS | 删除 Memory 后 Claim/Knowledge 引用悬挂 | **CLOSED**（Claim 行保留审计；非硬删） |
 | R18 | Parser 无实现，LLM 解析误差未知 | High | 无 parser；未来需 LLM/规则 | 低质量 Claim 污染 | P1 定 Parser 契约；P2 先小样本 |
 | R19 | 时间语义仅有 `occurred_at`/`expires_at` | Medium | `observations`/`memories` 字段 | 过去/现在/未来混淆 | P1 冻结 temporal scope |

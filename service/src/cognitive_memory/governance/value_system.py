@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""价值与伦理决策辅助 stubs（V-A 可规则分析；V-B/C 受 Gate）。"""
+"""价值与伦理决策辅助：V-A 常开；V-B/C 受 Gate；硬约束不可改。"""
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from typing import Any
 
 from cognitive_memory.governance.capability_gate import (
@@ -12,7 +14,6 @@ from cognitive_memory.governance.capability_gate import (
 )
 from cognitive_memory.storage.db import Database
 
-# 软偏好维度（可学习）；硬约束永不在此调整
 VALUE_DIMENSIONS = (
     "harm_avoidance",
     "fairness",
@@ -30,6 +31,10 @@ HARD_CONSTRAINTS = (
     "system_permissions",
     "capability_gate",
 )
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def analyze_value_conflict_basic(
@@ -73,7 +78,7 @@ def run_advanced_value_evaluation(
     db: Database,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """V-B：复杂价值模型 — Gate LOCKED 前禁止。"""
+    """V-B：多维度加权报告（非单一道德分决策）；Gate 默认 LOCKED。"""
     try:
         require_capability(db, "ADVANCED_VALUE_EVALUATION")
     except CapabilityLockedError as exc:
@@ -83,15 +88,51 @@ def run_advanced_value_evaluation(
             "capability": exc.capability,
             "gate": check_capability(db, "ADVANCED_VALUE_EVALUATION"),
         }
+
+    body = dict(payload or {})
+    basic = analyze_value_conflict_basic(
+        str(body.get("intent") or ""),
+        stakeholders=body.get("stakeholders") if isinstance(body.get("stakeholders"), list) else None,
+        proposed_action=str(body.get("proposed_action") or ""),
+    )
+    prefs = _load_soft_prefs(db)
+    weights = {d: float(prefs.get(d, 1.0)) for d in VALUE_DIMENSIONS}
+    # Heuristic pressure scores 0..1 per dimension from keyword hits
+    text = f"{body.get('intent','')} {body.get('proposed_action','')}".lower()
+    pressure = {d: 0.1 for d in VALUE_DIMENSIONS}
+    if any(k in text for k in ("隐私", "privacy")):
+        pressure["privacy"] = 0.9
+    if any(k in text for k in ("伤害", "harm", "危险")):
+        pressure["harm_avoidance"] = 0.85
+    if any(k in text for k in ("公平", "fair")):
+        pressure["fairness"] = 0.7
+    if basic["conflicts"]:
+        pressure["honesty"] = max(pressure["honesty"], 0.6)
+
+    weighted = {
+        d: round(pressure[d] * weights.get(d, 1.0), 4) for d in VALUE_DIMENSIONS
+    }
+    hard_block = any(
+        c.get("between", "").startswith("privacy")
+        or "authorization" in c.get("between", "")
+        for c in basic["conflicts"]
+    )
     return {
-        "ok": False,
-        "detail": "not_implemented",
-        "payload": payload or {},
+        "ok": True,
+        "phase": "V-B",
+        "basic": basic,
+        "weights": weights,
+        "pressure": pressure,
+        "weighted_pressure": weighted,
+        "hard_block_recommended": hard_block,
+        "single_moral_score": None,
+        "note": "multi-dimension report; refuses single moral scalar as authority",
+        "payload": body,
     }
 
 
 def adapt_value_model(db: Database, patch: dict[str, Any] | None = None) -> dict[str, Any]:
-    """V-C：自主价值模型调整 — 严格 Gate；硬约束不可改。"""
+    """V-C：软偏好写入；硬约束拒绝；Gate 默认 LOCKED。"""
     try:
         require_capability(db, "AUTONOMOUS_VALUE_ADAPTATION")
     except CapabilityLockedError as exc:
@@ -101,8 +142,56 @@ def adapt_value_model(db: Database, patch: dict[str, Any] | None = None) -> dict
             "capability": exc.capability,
             "gate": check_capability(db, "AUTONOMOUS_VALUE_ADAPTATION"),
         }
-    # 即使解锁，硬约束键必须拒绝
-    bad = [k for k in (patch or {}) if k in HARD_CONSTRAINTS]
+    patch = dict(patch or {})
+    actor = str(patch.pop("_actor", None) or "governance")
+    bad = [k for k in patch if k in HARD_CONSTRAINTS]
     if bad:
         return {"ok": False, "detail": "immutable_hard_constraint", "keys": bad}
-    return {"ok": False, "detail": "not_implemented", "patch": patch or {}}
+    soft_keys = [k for k in patch if k in VALUE_DIMENSIONS]
+    unknown = [k for k in patch if k not in VALUE_DIMENSIONS and k not in HARD_CONSTRAINTS]
+    if unknown:
+        return {"ok": False, "detail": "unknown_soft_keys", "keys": unknown}
+    if not soft_keys:
+        return {"ok": False, "detail": "empty_soft_patch"}
+
+    now = _now()
+    with db.transaction() as conn:
+        for k in soft_keys:
+            val = patch[k]
+            try:
+                f = float(val)
+            except (TypeError, ValueError):
+                return {"ok": False, "detail": "soft_pref_must_be_numeric", "key": k}
+            # clamp soft weights
+            f = max(0.0, min(f, 5.0))
+            conn.execute(
+                """
+                INSERT INTO value_soft_prefs(key, value_json, updated_at, actor)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                  value_json=excluded.value_json,
+                  updated_at=excluded.updated_at,
+                  actor=excluded.actor
+                """,
+                (k, json.dumps(f), now, actor),
+            )
+    return {
+        "ok": True,
+        "phase": "V-C",
+        "updated": soft_keys,
+        "prefs": _load_soft_prefs(db),
+        "note": "soft prefs only; hard constraints untouched",
+    }
+
+
+def _load_soft_prefs(db: Database) -> dict[str, float]:
+    db.ensure_schema()
+    out: dict[str, float] = {}
+    with db.transaction() as conn:
+        rows = conn.execute("SELECT key, value_json FROM value_soft_prefs").fetchall()
+    for r in rows:
+        try:
+            out[str(r["key"])] = float(json.loads(r["value_json"]))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return out

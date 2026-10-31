@@ -1,0 +1,298 @@
+{
+  "ok": true,
+  "source_db": "C:\\Users\\残月Y\\AppData\\Local\\Mnemosyne Memory Bank\\data\\memory.db",
+  "shadow_db": "d:\\HuaweiMoveData\\Users\\残月Y\\Desktop\\桌宠\\dsh-mnemosyne\\service\\docs\\2.0\\fixtures\\shadow_replay\\live_eval_shadow.db",
+  "sample_count": 120,
+  "query_count": 25,
+  "fts_recall_avg": 0.8,
+  "assist_novel_total": 0,
+  "assist_novel_rate": 0.0,
+  "evidence_links_scanned": 50,
+  "evidence_objects_created": 0,
+  "evidence_unknown": 0,
+  "evidence_partial": 0,
+  "provenance_complete_forbidden": 0,
+  "errors": [],
+  "samples": [
+    {
+      "memory_id": "mem_1a19089c76d39aea364e9",
+      "surface": "[music:inference] 用户可能偏好艺术家「LiSA」的作品（基于 4 首收藏）",
+      "query": "喜欢听LiSA",
+      "fts_ids": [
+        "mem_1a19089c76d39aea364e9"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c7962442a6bd24",
+      "surface": "[music:inference] 用户可能偏好艺术家「澤野弘之」的作品（基于 4 首收藏）",
+      "query": "喜欢听澤野弘之",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": [
+        {
+          "id": "mem_1a19089c7962442a6bd24",
+          "semantic": 0.2667
+        }
+      ]
+    },
+    {
+      "memory_id": "mem_1a19089c7c505cd591ab2",
+      "surface": "[music:inference] 用户可能偏好艺术家「ヨルシカ」的作品（基于 4 首收藏）",
+      "query": "喜欢听ヨルシカ",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c80a8fbc29abc2",
+      "surface": "[music:inference] 用户可能偏好艺术家「YOASOBI」的作品（基于 4 首收藏）",
+      "query": "喜欢听YOASOBI",
+      "fts_ids": [
+        "mem_1a19089c80a8fbc29abc2"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c832f006461c09",
+      "surface": "[music:inference] 用户可能偏好艺术家「EGOIST」的作品（基于 4 首收藏）",
+      "query": "喜欢听EGOIST",
+      "fts_ids": [
+        "mem_1a19089c832f006461c09"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c876d6fa67ce27",
+      "surface": "[music:inference] 用户可能偏好艺术家「米津玄師」的作品（基于 4 首收藏）",
+      "query": "喜欢听米津玄師",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": [
+        {
+          "id": "mem_1a19089c876d6fa67ce27",
+          "semantic": 0.2667
+        }
+      ]
+    },
+    {
+      "memory_id": "mem_1a19089c8b5d9cf8d89f7",
+      "surface": "[music:inference] 用户可能偏好艺术家「Kirara Magic」的作品（基于 3 首收藏）",
+      "query": "喜欢听Kirara Magic",
+      "fts_ids": [
+        "mem_1a19089c8b5d9cf8d89f7"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c8e265cd236487",
+      "surface": "[music:inference] 用户可能偏好艺术家「遊助」的作品（基于 3 首收藏）",
+      "query": "喜欢听遊助",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c916341006ddfd",
+      "surface": "[music:inference] 用户可能偏好艺术家「Marshmello」的作品（基于 3 首收藏）",
+      "query": "喜欢听Marshmello",
+      "fts_ids": [
+        "mem_1a19089c916341006ddfd"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c954d27a084e5f",
+      "surface": "[music:inference] 用户可能偏好艺术家「RADWIMPS」的作品（基于 3 首收藏）",
+      "query": "喜欢听RADWIMPS",
+      "fts_ids": [
+        "mem_1a19089c954d27a084e5f"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c97ffa185fa07a",
+      "surface": "[music:inference] 用户可能偏好艺术家「The Chainsmokers」的作品（基于 3 首收藏）",
+      "query": "喜欢听The Chainsmokers",
+      "fts_ids": [
+        "mem_1a19089c97ffa185fa07a",
+        "mem_1a19089ad29f065ff6bd6",
+        "mem_1a19089add557543a0ff3",
+        "mem_1a19089afe53283d60adb",
+        "mem_1a19089a0717a51d1b410"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c9c2c5e9056852",
+      "surface": "[music:inference] 用户可能偏好艺术家「Alan Walker」的作品（基于 3 首收藏）",
+      "query": "喜欢听Alan Walker",
+      "fts_ids": [
+        "mem_1a19089c9c2c5e9056852"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c9eda063d16983",
+      "surface": "[music:inference] 用户可能偏好艺术家「Tielle」的作品（基于 3 首收藏）",
+      "query": "喜欢听Tielle",
+      "fts_ids": [
+        "mem_1a19089c9eda063d16983"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089ca1b798d636aff",
+      "surface": "[music:inference] 用户可能偏好艺术家「Orangestar」的作品（基于 3 首收藏）",
+      "query": "喜欢听Orangestar",
+      "fts_ids": [
+        "mem_1a19089ca1b798d636aff"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089ca44eedb63ba68",
+      "surface": "[music:inference] 用户可能偏好艺术家「Candy_Wind」的作品（基于 3 首收藏）",
+      "query": "喜欢听Candy_Wind",
+      "fts_ids": [
+        "mem_1a19089ca44eedb63ba68"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089ca6e71cb71e27c",
+      "surface": "[music:inference] 用户可能偏好艺术家「ROOKiEZ is PUNK'D」的作品（基于 3 首收藏）",
+      "query": "喜欢听ROOKiEZ is PUNK'D",
+      "fts_ids": [
+        "mem_1a19089ca6e71cb71e27c"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089ca99b8fc0afde9",
+      "surface": "[music:inference] 用户可能偏好艺术家「徐梦圆」的作品（基于 3 首收藏）",
+      "query": "喜欢听徐梦圆",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089cadcabb0826992",
+      "surface": "[music:inference] 用户可能偏好艺术家「ILLENIUM」的作品（基于 3 首收藏）",
+      "query": "喜欢听ILLENIUM",
+      "fts_ids": [
+        "mem_1a19089cadcabb0826992"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089cb0b8b8de60494",
+      "surface": "[music:inference] 用户可能偏好艺术家「Vicetone」的作品（基于 3 首收藏）",
+      "query": "喜欢听Vicetone",
+      "fts_ids": [
+        "mem_1a19089cb0b8b8de60494"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c5d260eea3e656",
+      "surface": "[music:inference] 用户可能偏好艺术家「SawanoHiroyuki[nZk]」的作品（基于 10 首收藏）",
+      "query": "喜欢听SawanoHiroyuki[nZk]",
+      "fts_ids": [
+        "mem_1a19089c5d260eea3e656"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c60538d064dc07",
+      "surface": "[music:inference] 用户可能偏好艺术家「Tobu」的作品（基于 6 首收藏）",
+      "query": "喜欢听Tobu",
+      "fts_ids": [
+        "mem_1a19089c60538d064dc07"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c644e2bbd2caad",
+      "surface": "[music:inference] 用户可能偏好艺术家「Aimer」的作品（基于 6 首收藏）",
+      "query": "喜欢听Aimer",
+      "fts_ids": [
+        "mem_1a19089c644e2bbd2caad"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c681055a926cfd",
+      "surface": "[music:inference] 用户可能偏好艺术家「ReoNa」的作品（基于 5 首收藏）",
+      "query": "喜欢听ReoNa",
+      "fts_ids": [
+        "mem_1a19089c681055a926cfd"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c6bf334a0e0497",
+      "surface": "[music:inference] 用户可能偏好艺术家「MY FIRST STORY」的作品（基于 5 首收藏）",
+      "query": "喜欢听MY FIRST STORY",
+      "fts_ids": [
+        "mem_1a19089c6bf334a0e0497"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c6fd2c20bfeb42",
+      "surface": "[music:inference] 用户可能偏好艺术家「瑞葵(mizuki)」的作品（基于 5 首收藏）",
+      "query": "喜欢听瑞葵(mizuki)",
+      "fts_ids": [
+        "mem_1a19089c6fd2c20bfeb42"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    }
+  ],
+  "generated_at": "2026-10-31T07:45:21Z"
+}

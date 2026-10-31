@@ -561,6 +561,38 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON ab_outcomes(experiment_id, created_at);
         """,
     ),
+    (
+        "014_knowledge_v1",
+        """
+        -- Post-P5 Knowledge (Claim/Schema/Strategy downstream)
+        CREATE TABLE IF NOT EXISTS knowledge_nodes (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'proposed',
+          claim_ids_json TEXT NOT NULL DEFAULT '[]',
+          schema_id TEXT,
+          strategy_id TEXT,
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          scope_json TEXT NOT NULL DEFAULT '{}',
+          security_json TEXT NOT NULL DEFAULT '{}',
+          validation_json TEXT NOT NULL DEFAULT '{}',
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_knowledge_kind
+          ON knowledge_nodes(kind, status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS value_soft_prefs (
+          key TEXT PRIMARY KEY,
+          value_json TEXT NOT NULL DEFAULT 'null',
+          updated_at TEXT NOT NULL,
+          actor TEXT NOT NULL DEFAULT ''
+        );
+        """,
+    ),
 ]
 
 

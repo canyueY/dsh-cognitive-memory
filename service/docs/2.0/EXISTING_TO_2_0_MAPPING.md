@@ -26,9 +26,9 @@
 | Memory | `memories`、`memory_versions`、`bank_id`、`metadata` | Implemented | Keep | 无统一 SecurityContext；metadata 自由 JSON |
 | Evidence | `memory_evidence`（Memory↔Observation 链接） | Partial | Adapt | 非独立实体；无 source fingerprint/derivation/independence |
 | Claim | 无 | Missing | New | AST、parser、relation、state machine、persistence、API |
-| Knowledge | `cognitive_schemas`、`schema_versions` | Partial | Adapt | 无判别式类型；Schema 未由 Claim 派生；无 validator |
-| Experience | episodic memory / events | Partial | Adapt | 无 first-class Experience；无 task/action/outcome 统一结构 |
-| Strategy | 无 | Missing | New | Strategy、StrategyLog、propensity、off-policy |
+| Knowledge | `cognitive_schemas` + `knowledge_nodes`（P6） | Implemented | Adapt | 判别式类型 + validator；Schema demotion；Claim 派生 ClaimKnowledge |
+| Experience | episodic + `experiences`（P5） | Implemented | Adapt | first-class Experience（context/action/outcome） |
+| Strategy | `strategies` / `strategy_logs`（P5） | Implemented | New | Strategy、StrategyLog、propensity、门控 offline/A/B |
 
 ---
 
@@ -109,7 +109,7 @@
 - Justification / Truth Maintenance；
 - Visibility / Disclosure；
 - JudgmentTrace / DecisionRecord；
-- Experience / Strategy / StrategyLog；
+- ~~Experience / Strategy / StrategyLog~~ → P5 已落地；
 - Claim migration 与回滚。
 
 ---
