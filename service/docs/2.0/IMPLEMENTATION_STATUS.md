@@ -10,15 +10,15 @@
 | 任务书阶段 | 状态 |
 |---|---|
 | P0 / P0.5 / P1.5 | **COMPLETED** |
-| P1 Contract Freeze | **PARTIAL**（契约仍偏摘要） |
+| P1 Contract Freeze | **NEAR COMPLETE**（核心契约已补字段/算法冻结；其余摘要契约可继续加厚） |
 | P2 Claim Vertical Slice | **NEAR COMPLETE**（Merge/Split/Relation/S1–S20 已补；并发+幂等已测） |
 | P3 Evidence Independence | **COMPLETED**（代码层） |
 | P4 Knowledge & TMS | **COMPLETED**（代码层） |
 | P5 Experience & Strategy | **COMPLETED**（代码层） |
 | P6 Strategy Eval & MetaController | **PARTIAL**（真实 prop 数据不足） |
-| **P7 Fault Localization & Repair** | **IN PROGRESS**（`fault/` + `015_fault_v1` + pipeline；非 GA 脚本） |
-| P8 Security Hardening（全链路） | **PARTIAL** |
-| P9 Migration & Release | **MISSING**（P0.5 provenance_complete=0 → 禁止直接迁移） |
+| **P7 Fault Localization & Repair** | **NEAR COMPLETE**（`fault/` pipeline + 4 类注入 + auto-repair；回滚仍为记录型演练） |
+| **P8 Security Hardening（全链路）** | **NEAR COMPLETE**（推理泄漏守卫、grant cache 即时撤销、Memory→…→cache 删除传播） |
+| **P9 Migration & Release** | **PARTIAL**（provenance 门禁 dry-run 已落地；**禁止**在 complete_rate=0 时写生产） |
 
 ## 仓库阶段名（易混，勿当任务书）
 
@@ -38,11 +38,11 @@
 
 - 禁止静默 / LLM Verified；`confirm` ≠ 授权
 - 禁止生产 DB 回填；Claim forget → tombstone
-- P9 前必须先解决 provenance 完整率 = 0 的迁移策略
+- P9：`provenance_complete_rate < 0.01` → 写路径阻断；仅 dry-run / Unresolved 策略
 
-## 本轮增量（任务书 P2 + P7）
+## 本轮增量（任务书 P7 加深 + P8 + P9 dry-run + P1 契约）
 
-- Claim `merge` / `split` / `relate` / `parse` API
-- Relation：`same_as` + `contradicts` + `qualifies` + `supports`
-- Claim 矩阵 **S1–S20**（含并发提出、重复请求）
-- `fault/`：Invariant → Earliest → Diff Trace → Min Repro → Root Cause → Patch → Targeted/Regression/Replay/Rollback → Governance
+- P7：`fault/inject.py` + `fault/repair.py`；四类注入（redirect tombstone / verified无证据 / silent verified / lifecycle mismatch）+ auto_repair 全链路 stage
+- P8：`security/disclosure.py` 推理泄漏守卫；`identity/grant_cache.py` 撤销即失效；`tms/tombstone.py` 扩展 Knowledge/Strategy/Experience/cache 传播
+- P9：`migration/claim_dry_run.py` provenance 门禁只读计划（never Verified、never invent sources）
+- P1：加厚 visibility / security / relation / verification / evidence-provenance 契约字段与算法

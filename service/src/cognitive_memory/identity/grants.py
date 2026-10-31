@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from cognitive_memory.identity.grant_cache import DEFAULT_GRANT_CACHE, invalidate_grant_cache
 from cognitive_memory.identity.models import PrincipalKind, PrincipalUpsert
 from cognitive_memory.identity.store import get_principal, upsert_principal
 from cognitive_memory.storage.ids import new_id
@@ -230,6 +231,7 @@ def issue_grant(
                 """,
                 (now_s, "superseded", now_s, active.id),
             )
+        invalidate_grant_cache(agent_id)
 
     gid = new_id("agr")
     with db.transaction() as conn:
@@ -252,6 +254,7 @@ def issue_grant(
                 now_s,
             ),
         )
+    invalidate_grant_cache(agent_id)
     grant = get_grant_by_id(db, gid)
     audit(
         db,
@@ -322,6 +325,7 @@ def revoke_grant(db: Any, agent_id: str, *, reason: str = "") -> dict[str, Any]:
     ensure_grant_tables(db)
     grant = get_active_grant(db, agent_id)
     if not grant:
+        invalidate_grant_cache(agent_id)
         return {"ok": False, "error": "not_found"}
     now_s = _now_s()
     with db.transaction() as conn:
@@ -333,18 +337,51 @@ def revoke_grant(db: Any, agent_id: str, *, reason: str = "") -> dict[str, Any]:
             """,
             (now_s, reason or "revoked", now_s, agent_id),
         )
+    # P8: revoke must drop cached grant immediately (no TTL wait).
+    dropped = invalidate_grant_cache(agent_id)
     audit(
         db,
         agent_id=agent_id,
         action="revoke",
         decision="ok",
         resource="grant",
-        detail={"reason": reason, "grant_id": grant.id},
+        detail={"reason": reason, "grant_id": grant.id, "cache_dropped": dropped},
     )
-    return {"ok": True, "agent_id": agent_id, "revoked_at": now_s, "grant_id": grant.id}
+    return {
+        "ok": True,
+        "agent_id": agent_id,
+        "revoked_at": now_s,
+        "grant_id": grant.id,
+        "cache_invalidated": True,
+        "cache_dropped": dropped,
+    }
 
 
 def authenticate_agent(db: Any, agent_id: str, token: str) -> AgentGrant:
+    token_h = hash_token(token) if token else ""
+    cached = DEFAULT_GRANT_CACHE.get(agent_id)
+    if cached and cached.get("token_hash") and token_h:
+        if secrets.compare_digest(str(cached["token_hash"]), token_h) and not cached.get(
+            "revoked_at"
+        ):
+            # Re-hydrate AgentGrant from cache snapshot (still verify token).
+            grant = AgentGrant(
+                id=str(cached["id"]),
+                agent_id=agent_id,
+                permissions=list(cached.get("permissions") or []),
+                banks=list(cached.get("banks") or []),
+                token_hash=str(cached["token_hash"]),
+                expires_at=cached.get("expires_at"),
+                revoked_at=cached.get("revoked_at"),
+                revoke_reason=str(cached.get("revoke_reason") or ""),
+                consent=dict(cached.get("consent") or {}),
+                created_at=str(cached.get("created_at") or ""),
+                updated_at=str(cached.get("updated_at") or ""),
+            )
+            if grant.is_active():
+                return grant
+            invalidate_grant_cache(agent_id)
+
     grant = get_active_grant(db, agent_id)
     if not grant:
         # 区分：从未授权 vs 已撤销/过期
@@ -356,6 +393,9 @@ def authenticate_agent(db: Any, agent_id: str, token: str) -> AgentGrant:
         raise AgentAccessError("grant expired", code="expired")
     if not token or not secrets.compare_digest(grant.token_hash, hash_token(token)):
         raise AgentAccessError("invalid agent token", code="bad_token")
+    snap = grant.to_dict(include_hash=True)
+    snap["consent"] = dict(grant.consent)
+    DEFAULT_GRANT_CACHE.put(agent_id, snap)
     return grant
 
 

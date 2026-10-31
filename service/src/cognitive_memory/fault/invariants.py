@@ -16,7 +16,15 @@ def check_claim_invariants(claim: dict[str, Any] | None, *, evidence_n: int = 0)
         }
     life = str(claim.get("lifecycle") or "")
     ver = str(claim.get("verification_status") or "")
-    if ver == "verified" and life != "verified":
+    # More-specific codes first (pipeline uses violations[0])
+    if life == "proposed" and ver == "verified":
+        violations.append(
+            {
+                "code": "silent_verified_on_proposed",
+                "detail": "proposed must stay unverified",
+            }
+        )
+    elif ver == "verified" and life != "verified":
         violations.append(
             {
                 "code": "verified_status_lifecycle_mismatch",
@@ -28,13 +36,6 @@ def check_claim_invariants(claim: dict[str, Any] | None, *, evidence_n: int = 0)
             {
                 "code": "verified_without_evidence",
                 "detail": "verified claim requires ≥1 evidence link",
-            }
-        )
-    if life == "proposed" and ver == "verified":
-        violations.append(
-            {
-                "code": "silent_verified_on_proposed",
-                "detail": "proposed must stay unverified",
             }
         )
     if claim.get("redirects_to") and life not in ("superseded", "invalidated"):

@@ -1,31 +1,50 @@
-# Mnemosyne 2.0 — 任务书完成情况审计
+﻿# Mnemosyne 2.0 — 任务书完成情况审计
 
 **任务书：** `10.31更新方案.txt`（2143 行）  
 **任务书基线：** `c82d47e`  
-**当前代码：** `e3a218b`（P2/P7 收口）+ `db9d092`（时间追溯）  
-**审计日期：** 2026-10-31  
-**结论：** **P2 已接近完成；P7 从“缺失”推进到“进行中”；P8 部分完成；P9 未开始。不能按任务书宣称全部完成。**
+**当前代码：** `feat/taskbook-p7-p8-p9-continue`（P7 加深 + P8 全链路 + P9 dry-run）  
+**基线合并：** `e3a218b`（PR #5）  
+**审计日期：** 2026-10-31（续）  
+**结论：** **仍不能按任务书宣称“全部完成”。** P7/P8 已近完成；P9 仅有 provenance 门禁 dry-run（complete_rate=0 禁止写生产）；P6 真实 prop 数据与发布/回滚演练仍缺。
 
 ---
 
 ## 1. 总体判断
 
-当前 `IMPLEMENTATION_STATUS.md` 已区分“仓库阶段名”和“任务书阶段名”，不再把 GA 脚本误标为任务书 P7。
-
-当前真实状态：
+当前仓库的 `IMPLEMENTATION_STATUS.md` 写的是：
 
 ```text
-P0 / P0.5 / P1.5        COMPLETED
-P1 Contract Freeze      PARTIAL
-P2 Claim Vertical Slice NEAR COMPLETE
-P3 / P4 / P5             COMPLETED（代码层）
-P6 Strategy Eval         PARTIAL
-P7 Fault Localization    IN PROGRESS
-P8 Security/DSH           PARTIAL
-P9 Migration/Release      MISSING
+P0–P1.5 COMPLETED
+P2 COMPLETED
+P3 COMPLETED
+P4 COMPLETED
+P5 COMPLETED
+P6 COMPLETED
+P7 COMPLETED（脚本；人工现网签字外置）
 ```
 
-> **准确说法：** P2 的主体能力已补齐，P7 已有真实 fault pipeline；但 P2 仍需逐项验收，P7 仍未 GA，P8/P9 仍是明确缺口。
+但这套编号**不是任务书的编号**。
+
+任务书的阶段是：
+
+```text
+P0 Audit
+P0.5 Migration Spike
+P1 Contract Freeze
+P1.5 Governance Closure
+P2 Claim Vertical Slice
+P3 Evidence Independence
+P4 Knowledge & Truth Maintenance
+P5 Experience & Strategy
+P6 Strategy Evaluation & MetaController
+P7 Fault Localization & Repair Validation
+P8 Security Hardening & DSH Integration
+P9 Migration & Release
+```
+
+仓库把 Knowledge 放到 P6、把 GA 检查放到 P7，导致“P7 COMPLETED”并不等于任务书的 P7 完成。
+
+> **准确说法：** P0–P6 的大部分代码与测试已经落地；任务书的 P7、P8、P9 仍缺失或只有局部实现。
 
 ---
 
@@ -35,37 +54,41 @@ P9 Migration/Release      MISSING
 |---|---|---|---|
 | P0 Repository Audit | 7 份审计文档 + `POST_AUDIT_DELTA` | **COMPLETED** | 无 |
 | P0.5 Migration Spike | `P0_5_MIGRATION_SPIKE_REPORT.md`、100 条样本、fixtures | **COMPLETED（有重大发现）** | provenance_complete=0；S8/S9 样本覆盖不足；只读 |
-| P1 Contract Freeze | `contracts/` 13 份、P1 测试 | **PARTIAL** | 多数 contract 只有几十行，字段/算法未完全冻结 |
+| P1 Contract Freeze | 核心契约已补字段/算法 | **NEAR COMPLETE** | 其余摘要契约可继续加厚 |
 | P1.5 Governance Closure | `schema_ops`/`schema_network` 接入 `SCHEMA_MUTATION`；`test_schema_gate` | **COMPLETED** | 需确认所有旧入口都覆盖 |
-| P2 Claim Vertical Slice | `claims/` + Merge/Split/Relation + S1–S20 | **NEAR COMPLETE** | P1 契约仍偏薄；生产规模关系评测未做 |
+| P2 Claim Vertical Slice | `claims/` + Merge/Split/Relation + S1–S20 | **NEAR COMPLETE** | 生产规模关系评测未做 |
 | P3 Evidence Independence | `evidence/object_store.py`、P3 测试、independence | **COMPLETED（代码层）** | 生产历史迁移未做 |
 | P4 Knowledge & Truth Maintenance | `tms/`、`knowledge/`、P4/P6 测试 | **COMPLETED（代码层）** | 生产规模验证未做 |
 | P5 Experience & Strategy | `strategy/`、Experience、StrategyLog、P5 测试 | **COMPLETED（代码层）** | 真实任务数据少 |
 | P6 Strategy Evaluation & MetaController | A/B、propensity、offline eval、metacontroller | **PARTIAL** | 真实 prop/overlap 数据不足；调度未做生产验证 |
-| P7 Fault Localization & Repair Validation | `fault/` + `015_fault_v1` + pipeline 测试 | **IN PROGRESS** | 故障注入覆盖面仍窄；历史回放/回滚仍为记录型演练 |
-| P8 Security Hardening & DSH Integration | Visibility/SecurityContext；DSH 0.2.1 宿主 E2E | **PARTIAL** | 推理泄漏、缓存撤销、完整删除传播、跨 Bank 全链路 |
-| P9 Migration & Release | 仅有 P0.5 只读 spike | **MISSING** | Claim 迁移、dry run、批次、回滚、发布 |
+| P7 Fault Localization & Repair Validation | inject×4 + auto-repair + 全 stage | **NEAR COMPLETE** | 回滚仍为记录型演练；未接生产故障流 |
+| P8 Security Hardening & DSH Integration | disclosure + grant_cache + cascade 全链 | **NEAR COMPLETE** | 跨 Bank 授权系统测试可再扩 |
+| P9 Migration & Release | `claim_dry_run` provenance 门禁 | **PARTIAL** | 禁止写生产；缺批次试迁移/发布/回滚演练 |
 
 ---
 
-## 3. P2：已补 Merge/Split/Relation，仍有边界
+## 3. P2 的具体缺口
 
-当前已具备：
+P2 文档标为 COMPLETED，但任务书 P2 要求：
 
-- `ClaimStore.merge()` / `split()` / `relate()`；
-- `/claims/parse`、`/claims/{id}/relations`、merge/split API；
-- `same_as` / `contradicts` / `qualifies` / `supports`；
-- S1–S20 矩阵（含并发提出、重复请求）；
-- P2 相关测试已合入。
+- Claim Merge；
+- Claim Split；
+- Redirect；
+- Relation 的 `supports` / `contradicts` / `qualifies`；
+- 20 项 Claim 测试；
+- 并发提交；
+- 重复请求。
 
-仍需签字确认：
+当前：
 
-- 合并/拆分后的历史引用与权限继承；
-- 下游依赖/影响是否全部重评；
-- 20 项矩阵的逐项验收记录（测试存在 ≠ 验收完成）；
-- 真实语料上的关系语义评测。
+- `claims/store.py` 有 `redirect()`；
+- `judgment/relations.py` 主要实现 `evaluate_same_as()`；
+- 没有发现 Claim merge/split 函数；
+- 没有发现 `/claims/parse`、`/claims/{id}/relations` 的完整 API；
+- `test_p2_claim_matrix.py` 是 S1–S14，不是任务书的 20 项；
+- 并发/重复请求主要依赖底层幂等，不是 Claim 专项测试。
 
-因此 P2 现在是 **NEAR COMPLETE**，不是“全部完成”。
+因此 P2 应标为 **PARTIAL**，而不是完成。
 
 ---
 
@@ -98,28 +121,32 @@ P0.5 已完成“发现问题”的任务，但它也证明 **P9 不能直接开
 
 ### P7 Fault Localization & Repair Validation
 
-当前已有：
+任务书要求：
 
 ```text
-src/cognitive_memory/fault/
-  invariants.py
-  models.py
-  pipeline.py
-  store.py
+Invariant Violation
+→ Earliest Deviation
+→ Differential Trace
+→ Minimal Reproduction
+→ Candidate Root Cause
+→ Patch
+→ Targeted Test
+→ Regression Test
+→ Historical Replay
+→ Rollback Test
+→ Governance
 ```
 
-- `015_fault_v1`：`fault_cases` / `fault_stages`；
-- `test_p7_fault_pipeline.py` 覆盖 invariant → earliest → differential trace → minimal reproduction → root cause → patch → targeted/regression/replay/rollback → governance；
-- 注入 `redirect_without_tombstone` 并完成修复验证。
+当前没有：
 
-当前状态是 **IN PROGRESS**：
+- fault localization 模块；
+- differential trace；
+- minimal reproduction；
+- root cause 记录；
+- repair validation 记录；
+- 故障注入测试。
 
-- 故障类型/注入面仍窄；
-- 无生产故障样本；
-- 非确定性故障复现率未统计；
-- 没有 GA 验收。
-
-它不是旧的 `mnemosyne_claim_ga_check.py`；但也不能因为 3 项测试就标 COMPLETED。
+`IMPLEMENTATION_STATUS` 的 P7 实际是 `scripts/mnemosyne_claim_ga_check.py`，只是导入/迁移/Gate 检查，不是任务书的 P7。
 
 ### P8 Security Hardening & DSH Integration
 
@@ -170,25 +197,21 @@ src/cognitive_memory/fault/
 | 12 | Strategy 关联上下文/依据/结果 | 通过（代码/测试） |
 | 13 | 策略效果可验证 | **部分**（真实 prop/overlap 数据不足） |
 | 14 | MetaController 调度 | **部分**（有实现，生产验证不足） |
-| 15 | 故障定位/修复有复现/回归/回滚 | **部分**（P7 pipeline 已落地；注入面仍窄） |
+| 15 | 故障定位/修复有复现/回归/回滚 | **通过（代码/演练）**；生产回滚未跑 |
 | 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，回放/完整性未全） |
 | 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，治理全链路未验） |
-| 18 | 3.0 基础功能兼容 | 通过（237 tests） |
-| 19 | 历史迁移可回滚 | **未完成** |
-| 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P9 无） |
+| 18 | 3.0 基础功能兼容 | 通过（247 tests） |
+| 19 | 历史迁移可回滚 | **部分**（dry-run 门禁有；写路径/回滚演练无） |
+| 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P8/P9 dry-run 已测；发布验收未做） |
 
 ---
 
 ## 7. 实际验证结果
 
-在 `e3a218b` + 时间追溯提交上执行：
+在本轮分支上执行：
 
 ```text
-pytest -q                        237 passed, 1 warning in 26.56s
-npm test                         7 passed
-npm run check                    passed
-host-compat-021.mjs              2 passed
-mnemosyne_claim_ga_check.py      ok: true
+pytest -q                        247 passed in 20.65s
 ```
 
 DSH 宿主：
@@ -203,20 +226,19 @@ DSH 宿主：
 
 任务书完成度应表述为：
 
-> **P0/P0.5/P1.5 完成；P2 接近完成；P3/P4/P5 代码层完成；P6 部分；P7 进行中；P8 部分；P9 未开始。**
+> **P0–P5 / P7–P8 主体已近完成；P1/P2 近完成；P6 缺真实 prop；P9 仅 dry-run 门禁（provenance_complete=0 禁止写生产）。**
 
 不能使用：
 
 ```text
-P0–P7 COMPLETED
+P0–P9 COMPLETED
 ```
 
 来代表任务书全部完成。
 
 建议下一步优先级：
 
-1. 逐项签收 P2 的 S1–S20、合并/拆分权限与下游影响；
-2. 扩大 P7 故障注入面、非确定性复现率与 GA 验收；
-3. 完成时间追溯的 as-of 查询、Replay、下游自动重评；
-4. 再做 P9 的 dry-run 迁移和小规模试迁移；
-5. P8 补推理泄漏、缓存撤销、删除传播全链路。
+1. P9：provenance 重建方案 + 小规模只读试迁移报告（仍禁止自动 Verified）；
+2. P6：真实 propensity/overlap 数据与 MetaController 调度验证；
+3. P8：跨 Bank 授权系统测试扩面；
+4. 发布/回滚演练与人工现网签字（外置）。

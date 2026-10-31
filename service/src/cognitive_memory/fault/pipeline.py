@@ -46,10 +46,12 @@ def run_fault_pipeline(
     *,
     claim_id: str,
     patch_fn: Callable[[], dict[str, Any]] | None = None,
+    auto_repair: bool = False,
     run_regression: bool = True,
 ) -> dict[str, Any]:
     """Localize a Claim invariant break and optionally validate a repair patch."""
     from cognitive_memory.claims.store import ClaimStore
+    from cognitive_memory.fault.repair import repair_claim_invariant
 
     store = ClaimStore(db)
     faults = FaultStore(db)
@@ -81,19 +83,24 @@ def run_fault_pipeline(
     events = _lifecycle_events(db, claim_id)
     earliest = None
     for ev in events:
+        reason = str(ev.get("reason") or "")
         # First transition into a bad combo is the earliest deviation candidate
-        if code == "verified_without_evidence" and ev.get("to_status") == "verified":
+        if code == "verified_without_evidence" and (
+            ev.get("to_status") == "verified" or "verified_without_evidence" in reason
+        ):
             earliest = ev
             break
-        if code == "silent_verified_on_proposed" and ev.get("to_status") == "proposed":
+        if code == "silent_verified_on_proposed" and (
+            "silent_verified" in reason or ev.get("to_status") == "proposed"
+        ):
             earliest = ev
             break
-        if code == "redirect_without_tombstone" and "redirect" in str(ev.get("reason") or ""):
+        if code == "redirect_without_tombstone" and "redirect" in reason:
             earliest = ev
             break
-        if code == "verified_status_lifecycle_mismatch" and ev.get("to_status") in (
-            "verified",
-            "supported",
+        if code == "verified_status_lifecycle_mismatch" and (
+            "lifecycle_mismatch" in reason
+            or ev.get("to_status") in ("verified", "supported")
         ):
             earliest = ev
             break
@@ -143,12 +150,16 @@ def run_fault_pipeline(
     faults.set_status(fid, FaultStatus.LOCALIZED.value)
 
     patch_result: dict[str, Any] | None = None
-    if patch_fn is not None:
-        patch_result = patch_fn()
+    effective_patch = patch_fn
+    if effective_patch is None and auto_repair:
+        effective_patch = lambda: repair_claim_invariant(db, claim_id, code=code)
+
+    if effective_patch is not None:
+        patch_result = effective_patch()
         faults.append_stage(
             fid,
             FaultStage.PATCH.value,
-            payload={"result": patch_result},
+            payload={"result": patch_result, "auto_repair": auto_repair and patch_fn is None},
             ok=bool(patch_result and patch_result.get("ok")),
         )
         faults.set_status(fid, FaultStatus.PATCHED.value)
