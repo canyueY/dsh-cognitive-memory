@@ -56,12 +56,12 @@ P9 Migration & Release
 | P0.5 Migration Spike | `P0_5_MIGRATION_SPIKE_REPORT.md`、100 条样本、fixtures | **COMPLETED（有重大发现）** | provenance_complete=0；S8/S9 样本覆盖不足；只读 |
 | P1 Contract Freeze | `contracts/` 13 份、P1 测试 | **PARTIAL** | 多数 contract 只有几十行，字段/算法未完全冻结 |
 | P1.5 Governance Closure | `schema_ops`/`schema_network` 接入 `SCHEMA_MUTATION`；`test_schema_gate` | **COMPLETED** | 需确认所有旧入口都覆盖 |
-| P2 Claim Vertical Slice | `claims/` + 28 Claim 测试 + API | **PARTIAL** | 缺 Merge/Split；Relation API/完整关系判定不足；20 项矩阵未全覆盖 |
+| P2 Claim Vertical Slice | `claims/` + Merge/Split/Relation + S1–S20 | **NEAR COMPLETE** | P1 契约仍偏薄；生产规模关系评测未做 |
 | P3 Evidence Independence | `evidence/object_store.py`、P3 测试、independence | **COMPLETED（代码层）** | 生产历史迁移未做 |
 | P4 Knowledge & Truth Maintenance | `tms/`、`knowledge/`、P4/P6 测试 | **COMPLETED（代码层）** | 生产规模验证未做 |
 | P5 Experience & Strategy | `strategy/`、Experience、StrategyLog、P5 测试 | **COMPLETED（代码层）** | 真实任务数据少 |
 | P6 Strategy Evaluation & MetaController | A/B、propensity、offline eval、metacontroller | **PARTIAL** | 真实 prop/overlap 数据不足；调度未做生产验证 |
-| P7 Fault Localization & Repair Validation | **无 fault/repair 模块**；当前 P7 只是 GA 检查 | **MISSING** | 最早偏差、差分 Trace、最小复现、根因、回归/回滚 |
+| P7 Fault Localization & Repair Validation | `fault/` + `015_fault_v1` + pipeline 测试 | **IN PROGRESS** | 故障注入覆盖面仍窄；历史回放/回滚仍为记录型演练 |
 | P8 Security Hardening & DSH Integration | Visibility/SecurityContext；DSH 0.2.1 宿主 E2E | **PARTIAL** | 推理泄漏、缓存撤销、完整删除传播、跨 Bank 全链路 |
 | P9 Migration & Release | 仅有 P0.5 只读 spike | **MISSING** | Claim 迁移、dry run、批次、回滚、发布 |
 
@@ -186,7 +186,7 @@ Invariant Violation
 | 1 | Memory → 有来源 Evidence | 通过（代码/测试） |
 | 2 | Evidence → 结构化 Claim | 通过（P2） |
 | 3 | 确定性 Claim 身份比较 | 通过（`same_as`） |
-| 4 | 支持/反驳/限定/未知关系 | **部分**（关系引擎不完整） |
+| 4 | 支持/反驳/限定/未知关系 | **通过（代码/S17–S18）**；生产语料评测仍缺 |
 | 5 | VerificationEngine 验证 | 通过（代码/测试） |
 | 6 | 验证撤销/过期/重评 | 通过（测试） |
 | 7 | Unknown 贯穿判断链路 | **部分**（TruthValue 有，链路未全） |
@@ -197,7 +197,7 @@ Invariant Violation
 | 12 | Strategy 关联上下文/依据/结果 | 通过（代码/测试） |
 | 13 | 策略效果可验证 | **部分**（真实 prop/overlap 数据不足） |
 | 14 | MetaController 调度 | **部分**（有实现，生产验证不足） |
-| 15 | 故障定位/修复有复现/回归/回滚 | **未完成** |
+| 15 | 故障定位/修复有复现/回归/回滚 | **部分**（P7 pipeline 已落地；注入面仍窄） |
 | 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，回放/完整性未全） |
 | 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，治理全链路未验） |
 | 18 | 3.0 基础功能兼容 | 通过（221 tests） |

@@ -75,6 +75,9 @@ class ClaimStore:
         """Parse → normalize → persist Claim (lifecycle=proposed). Never verified."""
         parsed = parse_memory_text(text)
         ast: ClaimAST = parsed.ast
+        if scope:
+            merged_scope = {**(ast.scope or {}), **dict(scope)}
+            ast = ast.model_copy(update={"scope": merged_scope})
         if ast.is_unresolved() and not persist_unresolved:
             return {
                 "ok": True,
@@ -112,7 +115,7 @@ class ClaimStore:
             "normalized_hash": nh,
             "lifecycle": ClaimLifecycle.PROPOSED.value,
             "verification_status": "unverified",
-            "scope_json": json.dumps(scope or ast.scope or {}, ensure_ascii=False),
+            "scope_json": json.dumps(ast.scope or {}, ensure_ascii=False),
             "source_memory_id": source_memory_id,
             "redirects_to": None,
             "created_at": now,
@@ -600,6 +603,148 @@ class ClaimStore:
             "claim": self.get(source_id, follow_redirect=False),
             "trace_id": tid,
             "tms": tms_pack,
+        }
+
+    def merge(
+        self,
+        source_id: str,
+        target_id: str,
+        *,
+        reason: str = "claim_merge",
+        move_evidence: bool = True,
+    ) -> dict[str, Any]:
+        """Merge source into target: redirect + optional evidence reassignment."""
+        if source_id == target_id:
+            return {"ok": False, "detail": "self_merge"}
+        src = self.get(source_id, follow_redirect=False)
+        tgt = self.get(target_id, follow_redirect=True)
+        if not src or not tgt:
+            return {"ok": False, "detail": "claim_not_found"}
+        resolved_target = str(
+            (tgt.get("redirect_resolved") or tgt).get("id") or target_id
+        )
+        moved = 0
+        if move_evidence:
+            now = _now()
+            with self.db.transaction() as conn:
+                cur = conn.execute(
+                    """
+                    UPDATE claim_evidence
+                    SET claim_id=?
+                    WHERE claim_id=?
+                    """,
+                    (resolved_target, source_id),
+                )
+                moved = int(cur.rowcount or 0)
+                # touch target
+                conn.execute(
+                    "UPDATE claims SET updated_at=? WHERE id=?",
+                    (now, resolved_target),
+                )
+        redir = self.redirect(source_id, resolved_target, reason=reason)
+        if not redir.get("ok"):
+            return redir
+        tid = self._record_trace(
+            "claim.merge",
+            input_refs=[source_id, resolved_target],
+            output_refs=[resolved_target],
+            evidence_refs=[],
+            reason_codes=[reason, f"evidence_moved:{moved}"],
+            governance_critical=True,
+        )
+        return {
+            "ok": True,
+            "source_id": source_id,
+            "target_id": resolved_target,
+            "evidence_moved": moved,
+            "redirect": redir,
+            "claim": self.get(resolved_target),
+            "trace_id": tid,
+            "note": "merge_does_not_verify",
+        }
+
+    def split(
+        self,
+        claim_id: str,
+        parts: list[str],
+        *,
+        reason: str = "claim_split",
+        bank_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Split one Claim into ≥2 new Claims; original is redirected to the first part."""
+        texts = [str(p).strip() for p in (parts or []) if str(p).strip()]
+        if len(texts) < 2:
+            return {"ok": False, "detail": "split_requires_two_parts"}
+        src = self.get(claim_id, follow_redirect=False)
+        if not src:
+            return {"ok": False, "detail": "claim_not_found"}
+        if src.get("redirects_to"):
+            return {"ok": False, "detail": "claim_redirected"}
+        bank = bank_id or str(src.get("bank_id") or "personal")
+        created: list[dict[str, Any]] = []
+        for i, text in enumerate(texts):
+            # Distinct scope so split parts never collide with source same_as hash
+            pack = self.propose_from_text(
+                text,
+                bank_id=bank,
+                scope={"split_from": claim_id, "split_part": i},
+            )
+            if not pack.get("ok"):
+                return {"ok": False, "detail": "part_propose_failed", "part": pack}
+            cid = pack.get("claim_id") or (pack.get("same_as") or (pack.get("claim") or {}).get("id"))
+            if not cid:
+                return {"ok": False, "detail": "part_missing_id", "part": pack}
+            if str(cid) == str(claim_id):
+                return {"ok": False, "detail": "split_part_collapsed_to_source", "part": pack}
+            created.append({"claim_id": str(cid), "propose": pack})
+        primary = str(created[0]["claim_id"])
+        redir = self.redirect(claim_id, primary, reason=reason)
+        if not redir.get("ok"):
+            return {"ok": False, "detail": "redirect_failed", "redirect": redir, "created": created}
+        tid = self._record_trace(
+            "claim.split",
+            input_refs=[claim_id],
+            output_refs=[str(c["claim_id"]) for c in created],
+            reason_codes=[reason],
+            governance_critical=True,
+        )
+        return {
+            "ok": True,
+            "source_id": claim_id,
+            "parts": created,
+            "primary_id": primary,
+            "redirect": redir,
+            "trace_id": tid,
+            "note": "split_does_not_verify",
+        }
+
+    def relate(self, claim_id_a: str, claim_id_b: str) -> dict[str, Any]:
+        """Evaluate typed relation between two persisted Claims."""
+        from cognitive_memory.claims.ast import ClaimAST
+        from cognitive_memory.judgment.relations import evaluate_relation
+
+        a = self.get(claim_id_a, follow_redirect=True)
+        b = self.get(claim_id_b, follow_redirect=True)
+        if not a or not b:
+            return {"ok": False, "detail": "claim_not_found"}
+        try:
+            ast_a = ClaimAST.model_validate((a.get("redirect_resolved") or a).get("ast") or a.get("ast"))
+            ast_b = ClaimAST.model_validate((b.get("redirect_resolved") or b).get("ast") or b.get("ast"))
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "detail": "ast_invalid", "error": str(exc)}
+        result = evaluate_relation(ast_a, ast_b)
+        tid = self._record_trace(
+            "claim.relate",
+            input_refs=[claim_id_a, claim_id_b],
+            output_refs=[],
+            reason_codes=list(result.reason_codes),
+        )
+        return {
+            "ok": True,
+            "a": claim_id_a,
+            "b": claim_id_b,
+            "relation": result.model_dump(mode="json"),
+            "trace_id": tid,
         }
 
     def semantic_suggest(
