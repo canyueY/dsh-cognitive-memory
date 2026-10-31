@@ -11,10 +11,14 @@ export const TASK_TOOL = 'memory_task_status';
 export const OBSERVE_TOOL = 'memory_observe';
 export const HEALTH_TOOL = 'memory_health';
 
-/** DSH 0.2.1+ output.schema is JsonSchemaNode — no `type: 'json'`; bare `{}` = any JSON. */
+/**
+ * DSH 0.2.1 output.schema is enforced JsonSchemaNode.
+ * - `type: 'json'` / bare `{}` are rejected by defineTool
+ * - open object accepts arbitrary JSON object payloads from the Memory Service
+ */
 function jsonOut() {
   return {
-    schema: {},
+    schema: { type: 'object', additionalProperties: true },
     render: (_a, v) => [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }],
   };
 }
@@ -53,7 +57,7 @@ export function contextToolSpec() {
       token_budget: { type: 'integer' },
     },
     output: {
-      schema: {},
+      schema: { type: 'object', additionalProperties: true },
       render: (_a, v) => [{ type: 'text', text: v?.brief || JSON.stringify(v) }],
     },
   };
