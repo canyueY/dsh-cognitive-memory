@@ -29,6 +29,7 @@
 | Knowledge | `knowledge/store.py`、`validator.py`、`knowledge_nodes` 表 | Implemented |
 | Judgment Trace | `tracing/service.py`、`JudgmentTrace` | Implemented |
 | DSH 宿主 | `src/tool-spec.js` 输出 schema 改为 `{ type: 'object', additionalProperties: true }`；engines.dsh / peer 对齐 0.2.1 | Implemented |
+| DSH 宿主 E2E | 真实 `@deepseek-ai/dsh-tools@0.2.1-rc.5` + Python 子进程；见 [HOST_E2E_VERIFICATION.md](HOST_E2E_VERIFICATION.md) | Passed |
 
 ---
 
