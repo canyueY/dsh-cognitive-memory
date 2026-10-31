@@ -15,6 +15,7 @@ from cognitive_memory.claims.parser import parse_memory_text
 from cognitive_memory.security.context import SecurityContext
 from cognitive_memory.storage.db import Database
 from cognitive_memory.tracing.service import JudgmentTraceService
+from cognitive_memory.tms.store import TmsStore
 from cognitive_memory.verification.engine import VerificationEngine
 from cognitive_memory.verification.models import VerificationStatus
 from cognitive_memory.verification.persist import PersistentVerificationStore
@@ -38,6 +39,7 @@ class ClaimStore:
         self._ver_engine = VerificationEngine()
         self._ver_store = PersistentVerificationStore(db)
         self.traces = JudgmentTraceService()
+        self.tms = TmsStore(db)
 
     def _record_trace(
         self,
@@ -400,6 +402,16 @@ class ClaimStore:
                     now,
                 ),
             )
+        tms_pack: dict[str, Any] | None = None
+        if result.to_status in (
+            ClaimLifecycle.DISPUTED,
+            ClaimLifecycle.REJECTED,
+            ClaimLifecycle.SUPERSEDED,
+            ClaimLifecycle.EXPIRED,
+        ):
+            tms_pack = self.tms.invalidate_node(
+                claim_id, reason=f"lifecycle:{result.to_status.value}", actor=actor
+            )
         tid = self._record_trace(
             "claim.transition",
             input_refs=[claim_id],
@@ -416,6 +428,7 @@ class ClaimStore:
             "to_status": result.to_status.value,
             "claim": self.get(claim_id),
             "trace_id": tid,
+            "tms": tms_pack,
         }
 
     def submit_verified(
@@ -510,12 +523,19 @@ class ClaimStore:
                 ),
             )
         self._life._status[claim_id] = ClaimLifecycle.VERIFIED
+        tms_pack = self.tms.add_and_persist(
+            claim_id,
+            list(evidence_refs),
+            kind="support",
+            reason="submit_verified",
+            actor=actor,
+        )
         tid = self._record_trace(
             "claim.verify",
             input_refs=[claim_id],
             output_refs=[claim_id, record.record_id],
             evidence_refs=list(evidence_refs),
-            reason_codes=["verified"],
+            reason_codes=["verified", "tms_justification"],
             governance_critical=True,
         )
         return {
@@ -524,6 +544,7 @@ class ClaimStore:
             "record": record.model_dump(mode="json"),
             "claim": self.get(claim_id),
             "trace_id": tid,
+            "tms": tms_pack,
         }
 
     def redirect(self, source_id: str, target_id: str, *, reason: str = "merge") -> dict[str, Any]:
@@ -562,11 +583,14 @@ class ClaimStore:
                     now,
                 ),
             )
+        tms_pack = self.tms.invalidate_node(
+            source_id, reason=f"redirect:{resolved_target}", actor="system"
+        )
         tid = self._record_trace(
             "claim.redirect",
             input_refs=[source_id],
             output_refs=[resolved_target],
-            reason_codes=[reason, "superseded"],
+            reason_codes=[reason, "superseded", "tms_invalidate"],
             governance_critical=True,
         )
         return {
@@ -575,6 +599,7 @@ class ClaimStore:
             "redirects_to": resolved_target,
             "claim": self.get(source_id, follow_redirect=False),
             "trace_id": tid,
+            "tms": tms_pack,
         }
 
     def semantic_suggest(

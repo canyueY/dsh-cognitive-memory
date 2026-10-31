@@ -458,6 +458,33 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON evidences(bank_id, created_at);
         """,
     ),
+    (
+        "011_tms_v1",
+        """
+        -- P4 Truth Maintenance: justifications + belief snapshots
+        CREATE TABLE IF NOT EXISTS tms_justifications (
+          id TEXT PRIMARY KEY,
+          conclusion_id TEXT NOT NULL,
+          premises_json TEXT NOT NULL DEFAULT '[]',
+          kind TEXT NOT NULL DEFAULT 'support',
+          valid INTEGER NOT NULL DEFAULT 1,
+          reason TEXT NOT NULL DEFAULT '',
+          actor TEXT NOT NULL DEFAULT '',
+          policy_version TEXT NOT NULL DEFAULT 'tms.v1',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tms_just_conclusion
+          ON tms_justifications(conclusion_id, valid);
+        CREATE TABLE IF NOT EXISTS tms_beliefs (
+          node_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          reason_codes_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT NOT NULL
+        );
+        """,
+    ),
 ]
 
 

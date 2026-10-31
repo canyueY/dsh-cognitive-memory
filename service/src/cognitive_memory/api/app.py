@@ -26,6 +26,8 @@ from cognitive_memory.domain.models import (
     ClaimVerifyIn,
     EvidenceIndependenceIn,
     EvidenceObjectCreateIn,
+    TmsJustificationIn,
+    TmsPropagateIn,
     CognitiveChangePlanApplyIn,
     CognitiveChangePlanIn,
     ContextBuildIn,
@@ -886,6 +888,50 @@ def create_app(
             limit=int(body.get("limit") or 5),
             min_score=float(body.get("min_score") or 0.35),
         )
+
+    # ---- P4 Truth Maintenance ----
+    @app.post(f"{pref}/tms/justifications")
+    def tms_add_justification(
+        body: TmsJustificationIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="tms.justification")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().tms.add_and_persist(
+            body.conclusion_id,
+            body.premises,
+            kind=body.kind,
+            reason=body.reason,
+            actor=body.actor or access.actor_id,
+        )
+
+    @app.post(f"{pref}/tms/propagate")
+    def tms_propagate(
+        body: TmsPropagateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="tms.propagate")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        eng = _claim_store().tms.engine
+        result = eng.propagate(
+            list(body.seed_ids),
+            max_nodes=int(body.max_nodes),
+            max_depth=int(body.max_depth),
+        )
+        return {"ok": True, "result": result.model_dump(mode="json")}
+
+    @app.get(f"{pref}/tms/belief/{{node_id}}")
+    def tms_belief(
+        node_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="tms.belief")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        bel = _claim_store().tms.engine.belief(node_id)
+        impact = _claim_store().tms.engine.impact(node_id)
+        return {"ok": True, "belief": bel.model_dump(mode="json"), "impact": impact}
 
     @app.get(f"{pref}/schemas")
     def schemas_list(

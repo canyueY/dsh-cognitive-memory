@@ -303,6 +303,20 @@ class EvidenceIndependenceIn(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class TmsJustificationIn(BaseModel):
+    conclusion_id: str
+    premises: list[str] = Field(default_factory=list)
+    kind: str = "support"
+    reason: str = ""
+    actor: str = ""
+
+
+class TmsPropagateIn(BaseModel):
+    seed_ids: list[str] = Field(default_factory=list)
+    max_nodes: int = 64
+    max_depth: int = 16
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""

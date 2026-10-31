@@ -11,7 +11,8 @@
 | P1 Semantic Contract Freeze | **COMPLETED** |
 | P1.5 Governance Closure | **COMPLETED** |
 | P2 Claim Vertical Slice | **COMPLETED** |
-| P3 Evidence Objects | **IN PROGRESS**（对象 + 语义旁路已接通） |
+| P3 Evidence Objects | **NEAR COMPLETE**（live eval 已通） |
+| P4 Truth Maintenance | **IN PROGRESS**（Justification/SCC/预算传播 + Claim 接线） |
 
 ## P2 Claim Vertical Slice — COMPLETED
 
@@ -45,6 +46,23 @@
 - 语义旁路 online A/B 指标（可选）
 - 合入 PR #1（需确认）
 
+## P4 Truth Maintenance — IN PROGRESS
+
+### 已完成
+
+- 契约：`docs/2.0/contracts/tms.md` + `TMS_DRAFT.md`
+- `tms/`：Justification AND/OR、Tarjan SCC、预算传播、impact preview
+- 迁移 `011_tms_v1` + `TmsStore` 持久化
+- Claim 接线：verify→support justification；dispute/redirect→invalidate+propagate
+- API：`POST /tms/justifications`、`POST /tms/propagate`、`GET /tms/belief/{id}`
+- 测试：`test_p4_tms.py`（9 passed）；全量 **153** passed
+
+### 未完成
+
+- Schema impact 全量替换 `analyze_impact` stub
+- 删除/tombstone 级联（R17）
+- 合入 PR #1
+
 ### 下一步
 
-合入 PR #1；P4 TMS 另立项；禁止 LLM Verified / 生产回填。
+Schema/Evidence 级联与 tombstone；合入 PR；禁止 LLM Verified / 生产回填。
