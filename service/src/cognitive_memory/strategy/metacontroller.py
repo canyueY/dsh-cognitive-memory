@@ -116,6 +116,46 @@ def schedule(
             "note": "recommendation only — call activate_if_authorized separately",
         }
 
+    if act == "rank_candidates":
+        # P6: score proposed/experimental strategies by propensity (no deploy)
+        candidates = store.list(status="proposed", limit=50) + store.list(
+            status="experimental", limit=50
+        )
+        exp_store = ExperienceStore(db)
+        ranked: list[dict[str, Any]] = []
+        for row in candidates:
+            logs = store.list_logs(row["id"], limit=200)
+            exps: list[dict[str, Any]] = []
+            for lg in logs:
+                eid = lg.get("experience_id")
+                if eid:
+                    got = exp_store.get(str(eid))
+                    if got:
+                        exps.append(got)
+            prop = compute_propensity(exps, strategy_scope=row.get("scope") or {})
+            ranked.append(
+                {
+                    "strategy_id": row["id"],
+                    "name": row.get("name"),
+                    "status": row.get("status"),
+                    "propensity_score": prop.get("propensity_score"),
+                    "n": prop.get("n"),
+                    "mean_scope_overlap": prop.get("mean_scope_overlap"),
+                    "recommend": bool(
+                        (prop.get("propensity_score") or 0) >= 0.55
+                        and (prop.get("n") or 0) >= 3
+                    ),
+                }
+            )
+        ranked.sort(key=lambda x: float(x.get("propensity_score") or 0.0), reverse=True)
+        return {
+            "ok": True,
+            "action": "rank_candidates",
+            "count": len(ranked),
+            "ranked": ranked,
+            "note": "ranking only — no activate / no Verified",
+        }
+
     if act == "activate_if_authorized":
         if not strategy_id:
             return {"ok": False, "detail": "strategy_id_required", "action": act}

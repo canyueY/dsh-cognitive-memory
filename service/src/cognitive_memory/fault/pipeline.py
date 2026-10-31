@@ -48,10 +48,12 @@ def run_fault_pipeline(
     patch_fn: Callable[[], dict[str, Any]] | None = None,
     auto_repair: bool = False,
     run_regression: bool = True,
+    execute_rollback: bool = False,
 ) -> dict[str, Any]:
     """Localize a Claim invariant break and optionally validate a repair patch."""
     from cognitive_memory.claims.store import ClaimStore
     from cognitive_memory.fault.repair import repair_claim_invariant
+    from cognitive_memory.fault.rollback import rollback_fault_repair
 
     store = ClaimStore(db)
     faults = FaultStore(db)
@@ -189,18 +191,19 @@ def run_fault_pipeline(
                 payload={"replayed_events": len(events), "note": "lifecycle_events_replay_readonly"},
                 ok=True,
             )
-            # Rollback test: record that repair is reversible via tombstone/redirect only
+            # Rollback drill: plan always; execute when execute_rollback=True
+            rb = rollback_fault_repair(
+                db, claim_id, execute=bool(execute_rollback)
+            )
+            rb["earliest"] = earliest
             faults.append_stage(
                 fid,
                 FaultStage.ROLLBACK.value,
-                payload={
-                    "strategy": "restore_prior_lifecycle_from_event_log",
-                    "earliest": earliest,
-                    "executed": False,
-                    "note": "rollback_drill_recorded_not_auto_applied",
-                },
-                ok=True,
+                payload=rb,
+                ok=bool(rb.get("ok")),
             )
+            if execute_rollback and rb.get("executed"):
+                faults.set_status(fid, FaultStatus.ROLLED_BACK.value)
 
         faults.append_stage(
             fid,
@@ -209,10 +212,14 @@ def run_fault_pipeline(
                 "confirm_not_authorization": True,
                 "no_silent_verified": True,
                 "status": "review_required" if not inv2.get("ok") else "cleared",
+                "rollback_executed": bool(execute_rollback),
             },
             ok=bool(inv2.get("ok")),
         )
-        if inv2.get("ok"):
+        if execute_rollback:
+            # Drill ended in rollback; keep ROLLED_BACK even if patch had validated.
+            faults.set_status(fid, FaultStatus.ROLLED_BACK.value)
+        elif inv2.get("ok"):
             faults.set_status(fid, FaultStatus.VALIDATED.value)
 
     return {
