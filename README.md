@@ -35,6 +35,12 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 | `src/` + `package.json` | DSH 插件适配层：启动/守护 Node、注册 `memory_*` 工具 |
 | `legacy/dsh-plugin/` | 0.2 旧 DSH 插件归档，仅供追溯，不再作为主入口 |
 
+### 2.0 → 3.0：合并了什么
+
+![Mnemosyne 2.0 与 3.0 架构差异](service/docs/assets/architecture/mnemosyne-2-vs-3.png)
+
+*2.0 的两个入口，收敛为 3.0 的一个权威仓；Node、DSH 适配层与旧插件归档各归其位。*
+
 > 3.0 是合并后的全新版本：不再把 DSH 插件壳与 Node 分成两个仓库维护。旧 npm 包 `dsh-mnemosyne@0.2` 仍可在 npm 历史中安装，但不再接收新能力。
 
 迁移细节与版本兼容见 [`MIGRATION_3.0.md`](MIGRATION_3.0.md)。
