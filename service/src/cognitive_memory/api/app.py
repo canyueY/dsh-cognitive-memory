@@ -19,6 +19,24 @@ from cognitive_memory.domain.models import (
     ChangeDetectIn,
     ChangePlanApplyIn,
     ChangePlanBuildIn,
+    ClaimEvidenceIn,
+    ClaimProposeIn,
+    ClaimRedirectIn,
+    ClaimTransitionIn,
+    ClaimVerifyIn,
+    EvidenceIndependenceIn,
+    EvidenceObjectCreateIn,
+    AbAssignIn,
+    AbOutcomeIn,
+    AbReportIn,
+    ExperienceCreateIn,
+    MetaControllerIn,
+    StrategyLogIn,
+    StrategyOfflineEvalIn,
+    StrategyPropensityIn,
+    StrategyProposeIn,
+    TmsJustificationIn,
+    TmsPropagateIn,
     CognitiveChangePlanApplyIn,
     CognitiveChangePlanIn,
     ContextBuildIn,
@@ -350,8 +368,9 @@ def create_app(
     @app.post(f"{pref}/evidence")
     def evidence_attach(body: EvidenceLink, _: None = Depends(require_token)) -> dict[str, Any]:
         from cognitive_memory.evidence import EvidenceAttachIn
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
 
-        return service.attach_evidence(
+        legacy = service.attach_evidence(
             EvidenceAttachIn(
                 memory_id=body.memory_id,
                 observation_id=body.observation_id,
@@ -366,6 +385,68 @@ def create_app(
                 metadata=body.metadata,
             )
         )
+        # P3: also materialize first-class Evidence (never invent observation_id)
+        obj = EvidenceObjectStore(service.db).from_legacy_memory_link(
+            memory_id=body.memory_id,
+            observation_id=body.observation_id,
+            relation=body.relation.value
+            if hasattr(body.relation, "value")
+            else str(body.relation),
+            producer=body.producer or "",
+        )
+        pack = legacy.model_dump(mode="json") if hasattr(legacy, "model_dump") else dict(legacy)
+        pack["evidence_object"] = obj.get("evidence")
+        pack["evidence_object_ok"] = bool(obj.get("ok"))
+        return pack
+
+    @app.post(f"{pref}/evidences")
+    def evidences_create(
+        body: EvidenceObjectCreateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="evidences.create")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        return EvidenceObjectStore(service.db).create(
+            source_type=body.source_type,
+            source_ref=body.source_ref,
+            bank_id=body.bank_id,
+            content_for_fingerprint=body.content,
+            producer=body.producer,
+            role_hint=body.role_hint,
+            legacy_memory_id=body.legacy_memory_id,
+        )
+
+    @app.get(f"{pref}/evidences/{{evidence_id}}")
+    def evidences_get(
+        evidence_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="evidences.get")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        ev = EvidenceObjectStore(service.db).get(evidence_id)
+        if not ev:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "evidence"}
+            )
+        return {"ok": True, "evidence": ev}
+
+    @app.post(f"{pref}/evidences/independence")
+    def evidences_independence(
+        body: EvidenceIndependenceIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="evidences.independence")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        return EvidenceObjectStore(service.db).independence_conflict(body.evidence_ids)
 
     @app.get(f"{pref}/memories/{{memory_id}}/evidence")
     def evidence_list(memory_id: str, _: None = Depends(require_token)) -> dict[str, Any]:
@@ -469,6 +550,10 @@ def create_app(
             mode=body.mode,
             spatiotemporal_rerank=body.spatiotemporal_rerank,
             emotion_rerank=body.emotion_rerank,
+            semantic_assist=bool(body.semantic_assist),
+            semantic_weight=float(body.semantic_weight),
+            ab_experiment=bool(body.ab_experiment),
+            ab_subject_key=str(body.ab_subject_key or ""),
             token_budget=body.token_budget,
             types=body.types,
         )
@@ -682,6 +767,422 @@ def create_app(
             persist=body.persist,
         )
 
+    # ---- P2 Claim vertical slice ----
+    def _claim_store():
+        from cognitive_memory.claims.store import ClaimStore
+
+        if not hasattr(app.state, "claim_store"):
+            app.state.claim_store = ClaimStore(service.db)
+        return app.state.claim_store
+
+    @app.post(f"{pref}/claims/propose")
+    def claims_propose(
+        body: ClaimProposeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.propose")
+        ),
+    ) -> dict[str, Any]:
+        sec = access.to_security_context(default_bank=body.bank_id)
+        if not sec.allows_bank(body.bank_id) and not access.is_node_admin:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "bank_denied", "message": "claim bank not granted"},
+            )
+        return _claim_store().propose_from_text(
+            body.text,
+            bank_id=body.bank_id,
+            source_memory_id=body.source_memory_id,
+            persist_unresolved=body.persist_unresolved,
+        )
+
+    @app.get(f"{pref}/claims/{{claim_id}}")
+    def claims_get(
+        claim_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.get")
+        ),
+    ) -> dict[str, Any]:
+        # Peek bank without visibility first (node-only internal); then re-get with principal
+        raw = _claim_store().get(claim_id, follow_redirect=False, principal=None)
+        if not raw:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        bank = str(raw.get("bank_id") or "personal")
+        if access.is_node_admin:
+            # Node admin still evaluated against default personal unless grants list banks
+            principal = access.to_security_context(default_bank=bank)
+            # Node admin may read any bank
+            principal.authorized_grants = list(
+                set(principal.authorized_grants or []) | {f"bank:{bank}"}
+            )
+            principal.bank_id = bank
+        else:
+            principal = access.to_security_context(default_bank=bank)
+        pack = _claim_store().get(claim_id, principal=principal)
+        if not pack:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        return {"ok": True, "claim": pack}
+
+    @app.post(f"{pref}/claims/{{claim_id}}/transition")
+    def claims_transition(
+        claim_id: str,
+        body: ClaimTransitionIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.transition")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().transition(
+            claim_id,
+            body.target_status,
+            reason=body.reason,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/evidence")
+    def claims_evidence(
+        claim_id: str,
+        body: ClaimEvidenceIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.evidence")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().attach_evidence(
+            claim_id,
+            body.evidence_ref,
+            role=body.role,
+            independent=body.independent,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/redirect")
+    def claims_redirect(
+        claim_id: str,
+        body: ClaimRedirectIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.redirect")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().redirect(claim_id, body.target_id, reason=body.reason)
+
+    @app.post(f"{pref}/claims/{{claim_id}}/verify")
+    def claims_verify(
+        claim_id: str,
+        body: ClaimVerifyIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.verify")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().submit_verified(
+            claim_id,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+            authorized=True,
+            evidence_still_valid=body.evidence_still_valid,
+        )
+
+    @app.post(f"{pref}/claims/semantic-suggest")
+    def claims_semantic_suggest(
+        body: dict[str, Any],
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.semantic_suggest")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().semantic_suggest(
+            str(body.get("query") or ""),
+            bank_id=str(body.get("bank_id") or "personal"),
+            limit=int(body.get("limit") or 5),
+            min_score=float(body.get("min_score") or 0.35),
+        )
+
+    # ---- P4 Truth Maintenance ----
+    @app.post(f"{pref}/tms/justifications")
+    def tms_add_justification(
+        body: TmsJustificationIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="tms.justification")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().tms.add_and_persist(
+            body.conclusion_id,
+            body.premises,
+            kind=body.kind,
+            reason=body.reason,
+            actor=body.actor or access.actor_id,
+        )
+
+    @app.post(f"{pref}/tms/propagate")
+    def tms_propagate(
+        body: TmsPropagateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="tms.propagate")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        eng = _claim_store().tms.engine
+        result = eng.propagate(
+            list(body.seed_ids),
+            max_nodes=int(body.max_nodes),
+            max_depth=int(body.max_depth),
+        )
+        return {"ok": True, "result": result.model_dump(mode="json")}
+
+    @app.get(f"{pref}/tms/belief/{{node_id}}")
+    def tms_belief(
+        node_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="tms.belief")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        bel = _claim_store().tms.get_belief(node_id)
+        impact = _claim_store().tms.engine.impact(node_id)
+        return {"ok": True, "belief": bel.model_dump(mode="json"), "impact": impact}
+
+    # ---- P5 Experience / Strategy ----
+    @app.post(f"{pref}/experiences")
+    def experience_create(
+        body: ExperienceCreateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="experience.create")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+
+        _ = access
+        return ExperienceStore(service.db).create(
+            context=body.context,
+            action=body.action,
+            outcome=body.outcome,
+            memory_ids=body.memory_ids,
+            claim_ids=body.claim_ids,
+            reward=body.reward,
+            bank_id=body.bank_id,
+            source=body.source,
+        )
+
+    @app.get(f"{pref}/experiences")
+    def experience_list(
+        bank_id: str | None = None,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="experience.list")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+
+        _ = access
+        items = ExperienceStore(service.db).list(bank_id=bank_id, limit=limit)
+        return {"ok": True, "items": items, "count": len(items)}
+
+    @app.post(f"{pref}/strategies")
+    def strategy_propose(
+        body: StrategyProposeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.propose")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).propose(
+            body.name,
+            description=body.description,
+            scope=body.scope,
+            status=body.status,
+        )
+
+    @app.get(f"{pref}/strategies")
+    def strategy_list(
+        status: str | None = None,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.list")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        items = StrategyStore(service.db).list(status=status, limit=limit)
+        return {"ok": True, "items": items, "count": len(items)}
+
+    @app.get(f"{pref}/strategies/{{strategy_id}}")
+    def strategy_get(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.get")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        row = StrategyStore(service.db).get(strategy_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="strategy_not_found")
+        return {"ok": True, "strategy": row}
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/log")
+    def strategy_log(
+        strategy_id: str,
+        body: StrategyLogIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.log")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).log(
+            strategy_id,
+            experience_id=body.experience_id,
+            decision=body.decision,
+            outcome=body.outcome,
+            propensity=body.propensity,
+            overlap=body.overlap,
+            detail=body.detail,
+        )
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/activate")
+    def strategy_activate(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.activate")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).activate(strategy_id)
+
+    @app.post(f"{pref}/strategies/{{strategy_id}}/retire")
+    def strategy_retire(
+        strategy_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.retire")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        return StrategyStore(service.db).retire(strategy_id)
+
+    @app.post(f"{pref}/strategies/propensity")
+    def strategy_propensity(
+        body: StrategyPropensityIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="strategy.propensity")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.experience_store import ExperienceStore
+        from cognitive_memory.strategy.propensity import compute_propensity
+        from cognitive_memory.strategy.strategy_store import StrategyStore
+
+        _ = access
+        scope = dict(body.scope or {})
+        if body.strategy_id:
+            strat = StrategyStore(service.db).get(body.strategy_id)
+            if not strat:
+                return {"ok": False, "detail": "strategy_not_found"}
+            if not scope:
+                scope = dict(strat.get("scope") or {})
+        store = ExperienceStore(service.db)
+        exps: list[dict[str, Any]] = []
+        if body.experience_ids:
+            for eid in body.experience_ids:
+                row = store.get(eid)
+                if row:
+                    exps.append(row)
+        else:
+            exps = store.list(limit=100)
+        prop = compute_propensity(exps, strategy_scope=scope)
+        return {"ok": True, "strategy_id": body.strategy_id, "propensity": prop}
+
+    @app.post(f"{pref}/strategies/offline-eval")
+    def strategy_offline_eval(
+        body: StrategyOfflineEvalIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="strategy.offline_eval")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.offline_eval import run_offline_eval
+
+        _ = access
+        return run_offline_eval(
+            service.db,
+            body.strategy_id,
+            persist_propensity=body.persist_propensity,
+            log_result=body.log_result,
+        )
+
+    @app.post(f"{pref}/meta/schedule")
+    def meta_schedule(
+        body: MetaControllerIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="meta.schedule")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.strategy.metacontroller import schedule
+
+        _ = access
+        return schedule(
+            service.db,
+            action=body.action,
+            strategy_id=body.strategy_id,
+            ab_experiment=bool(body.ab_experiment),
+        )
+
+    @app.post(f"{pref}/ab/assign")
+    def ab_assign(
+        body: AbAssignIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="ab.assign")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import assign_arm
+
+        _ = access
+        return assign_arm(
+            service.db,
+            body.experiment_id,
+            subject_key=body.subject_key,
+            context=body.context,
+        )
+
+    @app.post(f"{pref}/ab/outcome")
+    def ab_outcome(
+        body: AbOutcomeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="ab.outcome")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import record_outcome
+
+        _ = access
+        return record_outcome(
+            service.db,
+            body.exposure_id,
+            reward=body.reward,
+            label=body.label,
+            detail=body.detail,
+        )
+
+    @app.post(f"{pref}/ab/report")
+    def ab_report(
+        body: AbReportIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="ab.report")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import report
+
+        _ = access
+        return report(service.db, body.experiment_id, limit=body.limit)
+
     @app.get(f"{pref}/schemas")
     def schemas_list(
         limit: int = 40,
@@ -712,7 +1213,12 @@ def create_app(
         from cognitive_memory.cognition.schema_ops import assimilate_schema
 
         return assimilate_schema(
-            service, schema_id, memory_ids=body.memory_ids, note=body.note
+            service,
+            schema_id,
+            memory_ids=body.memory_ids,
+            note=body.note,
+            confirm=bool(body.confirm),
+            preview=bool(body.preview),
         )
 
     @app.post(f"{pref}/schemas/{{schema_id}}/split")
@@ -763,6 +1269,8 @@ def create_app(
             memory_ids=body.memory_ids,
             counter_note=body.counter_note,
             propose_split=body.propose_split,
+            confirm=bool(body.confirm),
+            preview=bool(body.preview),
         )
 
     @app.post(f"{pref}/schemas/plans")
@@ -800,7 +1308,12 @@ def create_app(
     ) -> dict[str, Any]:
         from cognitive_memory.cognition.schema_ops import apply_cognitive_change_plan
 
-        return apply_cognitive_change_plan(service, plan_id, confirm=bool(body.confirm))
+        return apply_cognitive_change_plan(
+            service,
+            plan_id,
+            confirm=bool(body.confirm),
+            preview=bool(getattr(body, "preview", False)),
+        )
 
     @app.post(f"{pref}/metacognition/reflect")
     def metacognition_reflect(

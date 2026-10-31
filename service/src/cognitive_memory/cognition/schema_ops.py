@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""图式同化 / 顺应 / CognitiveChangePlan 应用（默认不自动 ACTIVE）。"""
+"""图式同化 / 顺应 / CognitiveChangePlan 应用（默认不自动 ACTIVE）。
+
+P1.5：长期 Schema 变更经 LearningProposal + SCHEMA_MUTATION。
+confirm=True 本身不是授权。
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,10 @@ from typing import Any
 
 from cognitive_memory.core.service import MemoryService
 from cognitive_memory.governance.capability_gate import check_capability
+from cognitive_memory.governance.schema_governance import (
+    authorize_schema_mutation,
+    proposal_payload,
+)
 
 
 def assimilate_schema(
@@ -15,8 +23,13 @@ def assimilate_schema(
     *,
     memory_ids: list[str] | None = None,
     note: str = "",
+    confirm: bool = False,
+    preview: bool = False,
 ) -> dict[str, Any]:
-    """将新经验关联到现有图式（补充 supporting 证据引用）。"""
+    """将新经验关联到现有图式（补充 supporting 证据引用）。
+
+    默认只写入 LearningProposal（dry_run）；落盘需 confirm + SCHEMA_MUTATION。
+    """
     sch = service.get_cognitive_schema(schema_id)
     if not sch:
         return {"ok": False, "detail": "schema_not_found"}
@@ -28,22 +41,74 @@ def assimilate_schema(
         if mid and mid not in supporting:
             supporting.append(mid)
             added.append(mid)
-    evid["supporting"] = supporting[:64]
+    evid_next = dict(evid)
+    evid_next["supporting"] = supporting[:64]
     notes = list(sch.get("assimilation_notes") or [])
     if note:
         notes.append(note)
     patch = {
-        "evidence": evid,
+        "evidence": evid_next,
         "assimilation_notes": notes[-20:],
         "confidence": min(0.85, float(sch.get("confidence") or 0.4) + 0.02 * len(added)),
     }
+    proposal = proposal_payload(
+        operation="ASSIMILATE",
+        target_schema_ids=[schema_id],
+        reason=note or "assimilate",
+        risk_level="MEDIUM",
+        evidence_refs=added,
+        patch=patch,
+        payload={"memory_ids": list(memory_ids or []), "note": note},
+    )
+    plan_id = service.store_cognitive_change_plan(proposal)
+
+    if preview or not confirm:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "preview": True,
+            "change_plan_id": plan_id,
+            "schema_id": schema_id,
+            "added_evidence": added,
+            "proposed_patch": patch,
+            "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
+        }
+
+    auth = authorize_schema_mutation(
+        service.db,
+        confirm=True,
+        preview=False,
+        operation="ASSIMILATE",
+        risk_level="MEDIUM",
+    )
+    if not auth.get("allowed"):
+        return {
+            "ok": False,
+            "detail": auth.get("detail") or "capability_locked",
+            "change_plan_id": plan_id,
+            "added_evidence": added,
+            "auth": auth,
+            "note": "confirm_true_is_not_authorization",
+        }
+
     updated = service.update_cognitive_schema(
         schema_id,
         patch=patch,
         change_type="REFINE",
-        reason="assimilate",
+        reason=f"assimilate:{plan_id}",
     )
-    return {"ok": True, "schema": updated, "added_evidence": added}
+    service.update_cognitive_change_plan(
+        plan_id,
+        status="APPLIED",
+        payload_patch={"applied": True, "confirm": True, "auth": auth},
+    )
+    return {
+        "ok": True,
+        "dry_run": False,
+        "schema": updated,
+        "added_evidence": added,
+        "change_plan_id": plan_id,
+    }
 
 
 def accommodate_schema(
@@ -53,8 +118,10 @@ def accommodate_schema(
     memory_ids: list[str] | None = None,
     counter_note: str = "",
     propose_split: bool = True,
+    confirm: bool = False,
+    preview: bool = False,
 ) -> dict[str, Any]:
-    """反例驱动：记录 counter 证据，并可选生成 SPECIALIZE 变更计划（不直接覆盖）。"""
+    """反例驱动：默认只生成 LearningProposal；落盘需 confirm + SCHEMA_MUTATION。"""
     sch = service.get_cognitive_schema(schema_id)
     if not sch:
         return {"ok": False, "detail": "schema_not_found"}
@@ -66,7 +133,8 @@ def accommodate_schema(
         if mid and mid not in counter:
             counter.append(mid)
             added.append(mid)
-    evid["counter"] = counter[:64]
+    evid_next = dict(evid)
+    evid_next["counter"] = counter[:64]
     app = dict(sch.get("applicability") or {})
     exclusions = list(app.get("exclusions") or [])
     if counter_note and counter_note not in exclusions:
@@ -78,36 +146,77 @@ def accommodate_schema(
     elif added and str(new_state).upper() == "PROPOSED":
         new_state = "VALIDATING"
     patch = {
-        "evidence": evid,
+        "evidence": evid_next,
         "applicability": app,
         "confidence": max(0.15, float(sch.get("confidence") or 0.4) - 0.05 * len(added)),
     }
+    proposal = proposal_payload(
+        operation="ACCOMMODATE",
+        target_schema_ids=[schema_id],
+        reason=counter_note or "counterevidence",
+        risk_level="MEDIUM",
+        evidence_refs=added,
+        patch=patch,
+        payload={
+            "proposed_patch": patch,
+            "proposed_state": str(new_state),
+            "propose_split": propose_split,
+            "memory_ids": list(memory_ids or []),
+        },
+    )
+    if propose_split and added:
+        proposal["expectedImpact"] = list(proposal.get("expectedImpact") or []) + [
+            "缩小原图式适用范围",
+            "可能拆分情境子图式",
+        ]
+        proposal["operation"] = "SPECIALIZE"
+    plan_id = service.store_cognitive_change_plan(proposal)
+
+    if preview or not confirm:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "preview": True,
+            "change_plan_id": plan_id,
+            "schema_id": schema_id,
+            "added_counter": added,
+            "proposed_patch": patch,
+            "proposed_state": str(new_state),
+            "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
+        }
+
+    auth = authorize_schema_mutation(
+        service.db,
+        confirm=True,
+        preview=False,
+        operation=str(proposal.get("operation") or "ACCOMMODATE"),
+        risk_level="MEDIUM",
+    )
+    if not auth.get("allowed"):
+        return {
+            "ok": False,
+            "detail": auth.get("detail") or "capability_locked",
+            "change_plan_id": plan_id,
+            "added_counter": added,
+            "auth": auth,
+            "note": "confirm_true_is_not_authorization",
+        }
+
     updated = service.update_cognitive_schema(
         schema_id,
         patch=patch,
         state=str(new_state),
         change_type="SPECIALIZE",
-        reason="accommodate",
+        reason=f"accommodate:{plan_id}",
     )
-    plan_id = None
-    if propose_split and added:
-        plan_id = service.store_cognitive_change_plan(
-            {
-                "operation": "SPECIALIZE",
-                "targetSchemaIds": [schema_id],
-                "evidenceRefs": added,
-                "expectedImpact": [
-                    "缩小原图式适用范围",
-                    "可能拆分情境子图式",
-                ],
-                "risk_level": "MEDIUM",
-                "approval_required": True,
-                "status": "PROPOSED",
-                "reason": counter_note or "counterevidence",
-            }
-        )
+    service.update_cognitive_change_plan(
+        plan_id,
+        status="APPLIED",
+        payload_patch={"applied": True, "confirm": True, "auth": auth},
+    )
     return {
         "ok": True,
+        "dry_run": False,
         "schema": updated,
         "added_counter": added,
         "change_plan_id": plan_id,
@@ -119,30 +228,46 @@ def apply_cognitive_change_plan(
     plan_id: str,
     *,
     confirm: bool = False,
+    preview: bool = False,
 ) -> dict[str, Any]:
-    """应用认知变更计划。激活/退休需 confirm；自动演化需 Gate。"""
+    """应用认知变更计划。P1.5：confirm ≠ 授权；须 SCHEMA_MUTATION。"""
     plan = service.get_cognitive_change_plan(plan_id)
     if not plan:
         return {"ok": False, "detail": "plan_not_found"}
     if str(plan.get("status") or "").upper() == "APPLIED":
         return {"ok": False, "detail": "already_applied"}
     risk = str(plan.get("risk_level") or "MEDIUM").upper()
-    if risk in ("HIGH", "CRITICAL") and not confirm:
-        return {"ok": False, "detail": "confirm_required", "risk_level": risk}
-    if plan.get("approval_required") and not confirm:
-        return {"ok": False, "detail": "confirm_required"}
+    if preview or not confirm:
+        return {
+            "ok": False,
+            "detail": "confirm_required",
+            "preview": True,
+            "risk_level": risk,
+            "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
+        }
+
+    auth = authorize_schema_mutation(
+        service.db,
+        confirm=True,
+        preview=False,
+        operation=str(plan.get("operation") or "APPLY"),
+        risk_level=risk,
+    )
+    if not auth.get("allowed"):
+        return {
+            "ok": False,
+            "detail": auth.get("detail") or "capability_locked",
+            "auth": auth,
+            "note": "confirm_true_is_not_authorization",
+        }
 
     op = str(plan.get("operation") or "UPDATE").upper()
     targets = list(plan.get("targetSchemaIds") or plan.get("target_schema_ids") or [])
 
-    # E2.4：SPLIT / MERGE 委托 schema_network（需 confirm）
     if op in ("SPLIT", "MERGE"):
-        if not confirm:
-            return {"ok": False, "detail": "confirm_required", "operation": op}
         from cognitive_memory.cognition.schema_network import merge_schemas, split_schema
 
         payload = plan.get("payload") if isinstance(plan.get("payload"), dict) else {}
-        # payload 也可能嵌在 plan 顶层（store 时扁平）
         if not payload:
             payload = {
                 k: plan.get(k)
@@ -153,26 +278,30 @@ def apply_cognitive_change_plan(
             parent_id = str(
                 (payload.get("parent_id") or (targets[0] if targets else "")) or ""
             )
-            result = split_schema(
+            return split_schema(
                 service,
                 parent_id,
                 child_specs=list(payload.get("child_specs") or []),
                 note=str(plan.get("reason") or ""),
                 confirm=True,
                 existing_plan_id=plan_id,
+                _governance_preauthorized=True,
             )
-        else:
-            result = merge_schemas(
-                service,
-                list(payload.get("source_ids") or targets),
-                note=str(plan.get("reason") or ""),
-                confirm=True,
-                existing_plan_id=plan_id,
-            )
-        return result
+        return merge_schemas(
+            service,
+            list(payload.get("source_ids") or targets),
+            note=str(plan.get("reason") or ""),
+            confirm=True,
+            existing_plan_id=plan_id,
+            _governance_preauthorized=True,
+        )
 
-    # 自动激活受 SCHEMA_AUTO_EVOLUTION 门禁
-    if op in ("CREATE", "UPDATE") and risk == "LOW" and not confirm:
+    if (
+        op in ("CREATE", "UPDATE")
+        and risk == "LOW"
+        and auth.get("capability") != "SCHEMA_MUTATION"
+        and auth.get("capability") != "SCHEMA_AUTO_EVOLUTION"
+    ):
         gate = check_capability(service.db, "SCHEMA_AUTO_EVOLUTION")
         if not gate.get("allowed"):
             return {
@@ -191,15 +320,33 @@ def apply_cognitive_change_plan(
             updated = service.update_cognitive_schema(
                 sid, state="RETIRED", change_type="RETIRE", reason=f"plan:{plan_id}"
             )
-        elif op in ("CREATE", "UPDATE", "SPECIALIZE", "GENERALIZE", "REFINE"):
-            # 低风险且已确认 → ACTIVE；否则 VALIDATING
-            next_state = "ACTIVE" if confirm and risk in ("LOW", "MEDIUM") else "VALIDATING"
+        elif op in (
+            "CREATE",
+            "UPDATE",
+            "SPECIALIZE",
+            "GENERALIZE",
+            "REFINE",
+            "ASSIMILATE",
+            "ACCOMMODATE",
+        ):
+            next_state = "ACTIVE" if risk in ("LOW", "MEDIUM") else "VALIDATING"
             if risk in ("HIGH", "CRITICAL"):
                 next_state = "VALIDATING"
+            payload = plan.get("payload") if isinstance(plan.get("payload"), dict) else {}
+            if isinstance(payload.get("proposed_state"), str) and payload.get("proposed_state"):
+                next_state = str(payload["proposed_state"])
+            patch: dict[str, Any] = {}
+            if isinstance(plan.get("proposed_patch"), dict):
+                patch = dict(plan.get("proposed_patch") or {})
+            elif isinstance(payload.get("proposed_patch"), dict):
+                patch = dict(payload.get("proposed_patch") or {})
             updated = service.update_cognitive_schema(
                 sid,
+                patch=patch or None,
                 state=next_state,
-                change_type=op if op != "CREATE" else "REFINE",
+                change_type=op
+                if op not in ("CREATE", "ASSIMILATE", "ACCOMMODATE")
+                else "REFINE",
                 reason=f"plan:{plan_id}",
             )
         else:
@@ -215,6 +362,6 @@ def apply_cognitive_change_plan(
     service.update_cognitive_change_plan(
         plan_id,
         status="APPLIED",
-        payload_patch={"applied_schemas": applied, "confirm": confirm},
+        payload_patch={"applied_schemas": applied, "confirm": confirm, "auth": auth},
     )
     return {"ok": True, "plan_id": plan_id, "applied": applied, "operation": op}

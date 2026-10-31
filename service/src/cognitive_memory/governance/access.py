@@ -30,6 +30,29 @@ class AccessContext:
     def is_node_admin(self) -> bool:
         return self.kind == "node"
 
+    def to_security_context(self, *, default_bank: str = "personal"):
+        """Map AccessContext → SecurityContext for Claim visibility."""
+        from cognitive_memory.security.context import SecurityContext
+
+        banks = list(self.banks or [])
+        if self.is_node_admin:
+            # Node admin: default bank personal; grants allow explicit banks if listed
+            grants = [f"bank:{b}" for b in banks] if banks else []
+            return SecurityContext(
+                bank_id=default_bank,
+                agent_id="",
+                owner_id=self.actor_id,
+                authorized_grants=grants or [f"bank:{default_bank}"],
+            )
+        primary = banks[0] if banks else default_bank
+        grants = [f"bank:{b}" for b in banks]
+        return SecurityContext(
+            bank_id=primary,
+            agent_id=self.actor_id,
+            owner_id=self.actor_id,
+            authorized_grants=grants,
+        )
+
 
 def _extract_bearer(authorization: str | None, x_memory_token: str | None) -> str | None:
     if authorization and authorization.lower().startswith("bearer "):

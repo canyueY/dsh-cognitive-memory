@@ -49,6 +49,16 @@ def reflect(
         if not app.get("exclusions"):
             problems.append(f"missing_exclusions:{sid}")
 
+    strategy_focus: dict[str, Any] | None = None
+    try:
+        from cognitive_memory.strategy.metacontroller import schedule
+
+        strategy_focus = schedule(service.db, action="reflect")
+        if strategy_focus.get("focus_count"):
+            problems.append("strategy_candidates_pending_review")
+    except Exception:
+        strategy_focus = {"ok": False, "detail": "strategy_reflect_unavailable"}
+
     return {
         "ok": True,
         "judgment": judgment,
@@ -60,9 +70,10 @@ def reflect(
             if problems
             else ["no_critical_issues"]
         ),
+        "strategy_focus": strategy_focus,
         "uncertainty": "high" if problems else "medium",
         "generated_at": _now(),
-        "note": "启发式检查；非正式验证证据",
+        "note": "启发式检查；非正式验证证据；不自动 ACTIVE",
     }
 
 
@@ -70,34 +81,7 @@ def analyze_impact(
     service: MemoryService,
     schema_id: str,
 ) -> dict[str, Any]:
-    """影响传播分析 stub：读 relations，生成重评任务列表（不递归改写）。"""
-    sch = service.get_cognitive_schema(schema_id)
-    if not sch:
-        return {"ok": False, "detail": "schema_not_found"}
-    rel = sch.get("relations") or {}
-    affected: list[dict[str, Any]] = []
-    for kind in (
-        "supports",
-        "contradicts",
-        "generalizes",
-        "specializes",
-        "dependsOn",
-        "refines",
-    ):
-        for nid in rel.get(kind) or []:
-            affected.append(
-                {
-                    "node_id": nid,
-                    "relation": kind,
-                    "action": "reevaluate",
-                    "auto_overwrite": False,
-                }
-            )
-    return {
-        "ok": True,
-        "changed_schema_id": schema_id,
-        "affected": affected,
-        "count": len(affected),
-        "note": "仅生成重评任务；禁止无条件递归覆盖",
-        "generated_at": _now(),
-    }
+    """P4：TMS 影响预览 + 重评任务；禁止无条件递归覆盖。"""
+    from cognitive_memory.tms.schema_bridge import analyze_schema_impact_tms
+
+    return analyze_schema_impact_tms(service, schema_id)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Mnemosyne 2.0：图式存储 / 发现 / Gate 硬锁。"""
+"""Mnemosyne 2.0：图式存储 / 发现 / Gate 硬锁 / P1.5 治理收口。"""
 
 from __future__ import annotations
 
@@ -56,6 +56,8 @@ class SchemaGateTests(unittest.TestCase):
         self.assertFalse(pack["allowed"])
         with self.assertRaises(CapabilityLockedError):
             require_capability(self.db, "RL_POLICY_DEPLOYMENT")
+        mut = check_capability(self.db, "SCHEMA_MUTATION")
+        self.assertFalse(mut["allowed"])
 
     def test_rl_and_value_stubs_locked(self) -> None:
         tr = run_offline_training(self.db, {})
@@ -92,9 +94,38 @@ class SchemaGateTests(unittest.TestCase):
                 status=MemoryStatus.ACTIVE,
             )
         )
+        # default: LearningProposal only — no direct mutation
         a = assimilate_schema(self.svc, sid, memory_ids=[mem.id], note="补充证据")
         self.assertTrue(a["ok"])
-        self.assertIn(mem.id, (a["schema"].get("evidence") or {}).get("supporting") or [])
+        self.assertTrue(a.get("dry_run"))
+        self.assertTrue(a.get("change_plan_id"))
+        sch_after_preview = self.svc.get_cognitive_schema(sid)
+        self.assertEqual(
+            (sch_after_preview.get("evidence") or {}).get("supporting") or [],
+            [],
+        )
+
+        # confirm alone is not authorization
+        denied_confirm = assimilate_schema(
+            self.svc, sid, memory_ids=[mem.id], note="补充证据", confirm=True
+        )
+        self.assertFalse(denied_confirm.get("ok"))
+        self.assertEqual(denied_confirm.get("detail"), "capability_locked")
+        self.assertIn("confirm_true_is_not_authorization", str(denied_confirm.get("note")))
+
+        set_capability_level(
+            self.db,
+            "SCHEMA_MUTATION",
+            level="ACTIVE",
+            enabled=True,
+            actor="test",
+        )
+        a_ok = assimilate_schema(
+            self.svc, sid, memory_ids=[mem.id], note="补充证据", confirm=True
+        )
+        self.assertTrue(a_ok["ok"])
+        self.assertFalse(a_ok.get("dry_run"))
+        self.assertIn(mem.id, (a_ok["schema"].get("evidence") or {}).get("supporting") or [])
 
         mem2 = self.svc.propose_memory(
             MemoryProposeIn(
@@ -110,6 +141,7 @@ class SchemaGateTests(unittest.TestCase):
             counter_note="技术讨论例外",
         )
         self.assertTrue(b["ok"])
+        self.assertTrue(b.get("dry_run"))
         self.assertTrue(b.get("change_plan_id"))
         plan = self.svc.get_cognitive_change_plan(str(b["change_plan_id"]))
         self.assertEqual(plan["status"], "PROPOSED")
@@ -118,11 +150,39 @@ class SchemaGateTests(unittest.TestCase):
         self.assertFalse(denied.get("ok"))
         self.assertEqual(denied.get("detail"), "confirm_required")
 
+        # unlock already set — apply should succeed
         applied = apply_cognitive_change_plan(self.svc, plan["id"], confirm=True)
         self.assertTrue(applied.get("ok"))
 
+    def test_confirm_true_does_not_bypass_locked_apply(self) -> None:
+        sid = self.svc.store_cognitive_schema(
+            {
+                "name": "门禁图式",
+                "type": "KNOWLEDGE",
+                "state": "PROPOSED",
+                "confidence": 0.3,
+                "evidence": {"supporting": [], "counter": []},
+            }
+        )
+        plan_id = self.svc.store_cognitive_change_plan(
+            {
+                "operation": "SPECIALIZE",
+                "targetSchemaIds": [sid],
+                "risk_level": "MEDIUM",
+                "approval_required": True,
+                "status": "PROPOSED",
+                "reason": "gate-test",
+                "payload": {"proposed_patch": {"description": "patched"}, "proposed_state": "VALIDATING"},
+                "proposed_patch": {"description": "patched"},
+            }
+        )
+        blocked = apply_cognitive_change_plan(self.svc, plan_id, confirm=True)
+        self.assertFalse(blocked.get("ok"))
+        self.assertEqual(blocked.get("detail"), "capability_locked")
+        sch = self.svc.get_cognitive_schema(sid) or {}
+        self.assertNotEqual(sch.get("description"), "patched")
+
     def test_discover_from_memories(self) -> None:
-        # 写入可聚类的重复主题
         for i in range(4):
             self.svc.propose_memory(
                 MemoryProposeIn(
@@ -140,7 +200,6 @@ class SchemaGateTests(unittest.TestCase):
         )
         self.assertTrue(pack.get("ok"))
         self.assertGreaterEqual(int(pack.get("scanned_memories") or 0), 4)
-        # 聚类阈值依赖分词，允许 0 候选但接口必须成功
         self.assertIn("candidates", pack)
         listed = self.svc.list_cognitive_schemas(limit=20)
         if pack.get("count"):

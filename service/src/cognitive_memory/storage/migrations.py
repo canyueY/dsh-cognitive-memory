@@ -357,6 +357,210 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON agent_audit(agent_id, created_at);
         """,
     ),
+    (
+        "009_claims_v1",
+        """
+        -- P2 Claim vertical slice: first-class Claim rows (not Memory projections)
+        CREATE TABLE IF NOT EXISTS claims (
+          id TEXT PRIMARY KEY,
+          bank_id TEXT NOT NULL DEFAULT 'personal',
+          ast_version TEXT NOT NULL,
+          ast_json TEXT NOT NULL,
+          surface TEXT NOT NULL DEFAULT '',
+          normalized_hash TEXT NOT NULL,
+          lifecycle TEXT NOT NULL DEFAULT 'proposed',
+          verification_status TEXT NOT NULL DEFAULT 'unverified',
+          scope_json TEXT NOT NULL DEFAULT '{}',
+          source_memory_id TEXT,
+          redirects_to TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_claims_bank_life
+          ON claims(bank_id, lifecycle, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_claims_hash
+          ON claims(normalized_hash);
+        CREATE INDEX IF NOT EXISTS idx_claims_source_mem
+          ON claims(source_memory_id);
+        CREATE INDEX IF NOT EXISTS idx_claims_redirect
+          ON claims(redirects_to);
+
+        CREATE TABLE IF NOT EXISTS claim_evidence (
+          id TEXT PRIMARY KEY,
+          claim_id TEXT NOT NULL,
+          evidence_ref TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'support',
+          independent INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_claim_evidence_claim
+          ON claim_evidence(claim_id, role);
+
+        CREATE TABLE IF NOT EXISTS claim_lifecycle_events (
+          id TEXT PRIMARY KEY,
+          claim_id TEXT NOT NULL,
+          from_status TEXT NOT NULL,
+          to_status TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          actor TEXT NOT NULL DEFAULT '',
+          policy_version TEXT NOT NULL DEFAULT 'claim.lifecycle.v1',
+          evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_claim_life_events
+          ON claim_lifecycle_events(claim_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS verification_records (
+          id TEXT PRIMARY KEY,
+          claim_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+          actor TEXT NOT NULL DEFAULT '',
+          verified_at TEXT,
+          expired_at TEXT,
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_verification_claim
+          ON verification_records(claim_id, created_at);
+        """,
+    ),
+    (
+        "010_evidence_objects_v1",
+        """
+        -- P3: first-class Evidence objects (memory_evidence remains legacy bridge)
+        CREATE TABLE IF NOT EXISTS evidences (
+          id TEXT PRIMARY KEY,
+          bank_id TEXT NOT NULL DEFAULT 'personal',
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL DEFAULT '',
+          fingerprint TEXT NOT NULL,
+          provenance_status TEXT NOT NULL DEFAULT 'unknown',
+          independence_key TEXT NOT NULL DEFAULT '',
+          root_source_id TEXT NOT NULL DEFAULT '',
+          producer TEXT NOT NULL DEFAULT '',
+          role_hint TEXT NOT NULL DEFAULT 'support',
+          validation_state TEXT NOT NULL DEFAULT 'unverified',
+          security_json TEXT NOT NULL DEFAULT '{}',
+          chain_json TEXT NOT NULL DEFAULT '[]',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          legacy_memory_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_evidences_fingerprint
+          ON evidences(fingerprint);
+        CREATE INDEX IF NOT EXISTS idx_evidences_source
+          ON evidences(source_type, source_ref);
+        CREATE INDEX IF NOT EXISTS idx_evidences_indep
+          ON evidences(independence_key);
+        CREATE INDEX IF NOT EXISTS idx_evidences_bank
+          ON evidences(bank_id, created_at);
+        """,
+    ),
+    (
+        "011_tms_v1",
+        """
+        -- P4 Truth Maintenance: justifications + belief snapshots
+        CREATE TABLE IF NOT EXISTS tms_justifications (
+          id TEXT PRIMARY KEY,
+          conclusion_id TEXT NOT NULL,
+          premises_json TEXT NOT NULL DEFAULT '[]',
+          kind TEXT NOT NULL DEFAULT 'support',
+          valid INTEGER NOT NULL DEFAULT 1,
+          reason TEXT NOT NULL DEFAULT '',
+          actor TEXT NOT NULL DEFAULT '',
+          policy_version TEXT NOT NULL DEFAULT 'tms.v1',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tms_just_conclusion
+          ON tms_justifications(conclusion_id, valid);
+        CREATE TABLE IF NOT EXISTS tms_beliefs (
+          node_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          reason_codes_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT NOT NULL
+        );
+        """,
+    ),
+    (
+        "012_strategy_v1",
+        """
+        -- P5 Experience / Strategy / StrategyLog
+        CREATE TABLE IF NOT EXISTS experiences (
+          id TEXT PRIMARY KEY,
+          bank_id TEXT NOT NULL DEFAULT 'personal',
+          context_json TEXT NOT NULL DEFAULT '{}',
+          action_json TEXT NOT NULL DEFAULT '{}',
+          outcome_json TEXT NOT NULL DEFAULT '{}',
+          memory_ids_json TEXT NOT NULL DEFAULT '[]',
+          claim_ids_json TEXT NOT NULL DEFAULT '[]',
+          reward REAL,
+          source TEXT NOT NULL DEFAULT 'manual',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_experiences_bank
+          ON experiences(bank_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS strategies (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          scope_json TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'proposed',
+          propensity_json TEXT NOT NULL DEFAULT '{}',
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_strategies_status
+          ON strategies(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS strategy_logs (
+          id TEXT PRIMARY KEY,
+          strategy_id TEXT NOT NULL,
+          experience_id TEXT,
+          decision TEXT NOT NULL DEFAULT '',
+          outcome TEXT NOT NULL DEFAULT '',
+          propensity REAL,
+          overlap REAL,
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_strategy_logs_sid
+          ON strategy_logs(strategy_id, created_at);
+        """,
+    ),
+    (
+        "013_ab_v1",
+        """
+        -- P5 online A/B metrics (exposures/outcomes only; no auto-deploy)
+        CREATE TABLE IF NOT EXISTS ab_exposures (
+          id TEXT PRIMARY KEY,
+          experiment_id TEXT NOT NULL,
+          arm TEXT NOT NULL,
+          subject_key TEXT NOT NULL DEFAULT '',
+          context_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ab_exposures_exp
+          ON ab_exposures(experiment_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS ab_outcomes (
+          id TEXT PRIMARY KEY,
+          exposure_id TEXT NOT NULL,
+          experiment_id TEXT NOT NULL,
+          reward REAL,
+          label TEXT NOT NULL DEFAULT '',
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ab_outcomes_exp
+          ON ab_outcomes(experiment_id, created_at);
+        """,
+    ),
 ]
 
 

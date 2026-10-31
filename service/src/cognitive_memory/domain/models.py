@@ -224,6 +224,12 @@ class RetrieveIn(BaseModel):
     mode: str = "current"
     spatiotemporal_rerank: bool = True
     emotion_rerank: bool = False
+    # P3：语义旁路加分；不可作为 Verified / Evidence 替代
+    semantic_assist: bool = True
+    semantic_weight: float = 0.25
+    # P5：opt-in A/B；需 BANDIT_EXPERIMENT；control 关闭 assist
+    ab_experiment: bool = False
+    ab_subject_key: str = ""
     token_budget: int | None = None
     types: list[MemoryType] | None = None
 
@@ -255,15 +261,142 @@ class SchemaDiscoverIn(BaseModel):
     persist: bool = True
 
 
+class ClaimProposeIn(BaseModel):
+    text: str
+    bank_id: str = "personal"
+    source_memory_id: str | None = None
+    persist_unresolved: bool = True
+
+
+class ClaimTransitionIn(BaseModel):
+    target_status: str
+    reason: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+
+
+class ClaimEvidenceIn(BaseModel):
+    evidence_ref: str
+    role: str = "support"
+    independent: bool = False
+
+
+class ClaimRedirectIn(BaseModel):
+    target_id: str
+    reason: str = "merge"
+
+
+class ClaimVerifyIn(BaseModel):
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+    evidence_still_valid: bool = True
+
+
+class EvidenceObjectCreateIn(BaseModel):
+    source_type: str = "observation"
+    source_ref: str = ""
+    bank_id: str = "personal"
+    producer: str = ""
+    content: str = ""
+    role_hint: str = "support"
+    legacy_memory_id: str | None = None
+
+
+class EvidenceIndependenceIn(BaseModel):
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class TmsJustificationIn(BaseModel):
+    conclusion_id: str
+    premises: list[str] = Field(default_factory=list)
+    kind: str = "support"
+    reason: str = ""
+    actor: str = ""
+
+
+class TmsPropagateIn(BaseModel):
+    seed_ids: list[str] = Field(default_factory=list)
+    max_nodes: int = 64
+    max_depth: int = 16
+
+
+class ExperienceCreateIn(BaseModel):
+    context: dict[str, Any] = Field(default_factory=dict)
+    action: dict[str, Any] = Field(default_factory=dict)
+    outcome: dict[str, Any] = Field(default_factory=dict)
+    memory_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    reward: float | None = None
+    bank_id: str = "personal"
+    source: str = "manual"
+
+
+class StrategyProposeIn(BaseModel):
+    name: str
+    description: str = ""
+    scope: dict[str, Any] = Field(default_factory=dict)
+    status: str = "proposed"
+
+
+class StrategyLogIn(BaseModel):
+    experience_id: str | None = None
+    decision: str = ""
+    outcome: str = ""
+    propensity: float | None = None
+    overlap: float | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyOfflineEvalIn(BaseModel):
+    strategy_id: str
+    persist_propensity: bool = True
+    log_result: bool = True
+
+
+class StrategyPropensityIn(BaseModel):
+    strategy_id: str | None = None
+    experience_ids: list[str] = Field(default_factory=list)
+    scope: dict[str, Any] = Field(default_factory=dict)
+
+
+class MetaControllerIn(BaseModel):
+    action: str = "reflect"
+    strategy_id: str | None = None
+    ab_experiment: bool = False
+
+
+class AbAssignIn(BaseModel):
+    experiment_id: str = "semantic_assist.v1"
+    subject_key: str = ""
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class AbOutcomeIn(BaseModel):
+    exposure_id: str
+    reward: float | None = None
+    label: str = ""
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AbReportIn(BaseModel):
+    experiment_id: str = "semantic_assist.v1"
+    limit: int = 500
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""
+    # P1.5：confirm  alone 不足；落盘另需 SCHEMA_MUTATION
+    confirm: bool = False
+    preview: bool = False
 
 
 class SchemaAccommodateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     counter_note: str = ""
     propose_split: bool = True
+    confirm: bool = False
+    preview: bool = False
 
 
 class CognitiveChangePlanIn(BaseModel):
@@ -278,6 +411,7 @@ class CognitiveChangePlanIn(BaseModel):
 
 class CognitiveChangePlanApplyIn(BaseModel):
     confirm: bool = False
+    preview: bool = False
 
 
 class CapabilityCheckIn(BaseModel):

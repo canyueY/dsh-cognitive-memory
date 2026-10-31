@@ -1,0 +1,113 @@
+{
+  "ok": true,
+  "source_db": "C:\\Users\\残月Y\\AppData\\Local\\Mnemosyne Memory Bank\\data\\memory.db",
+  "shadow_db": "d:\\HuaweiMoveData\\Users\\残月Y\\Desktop\\桌宠\\dsh-mnemosyne\\service\\docs\\2.0\\fixtures\\shadow_replay\\live_eval_shadow_v2.db",
+  "sample_count": 120,
+  "query_count": 25,
+  "fts_recall_avg": 0.8,
+  "assist_novel_total": 3,
+  "assist_novel_rate": 0.12,
+  "evidence_links_scanned": 50,
+  "evidence_objects_created": 50,
+  "evidence_unknown": 0,
+  "evidence_partial": 50,
+  "provenance_complete_forbidden": 0,
+  "errors": [],
+  "samples": [
+    {
+      "memory_id": "mem_1a19089c76d39aea364e9",
+      "surface": "[music:inference] 用户可能偏好艺术家「LiSA」的作品（基于 4 首收藏）",
+      "query": "喜欢听LiSA",
+      "fts_ids": [
+        "mem_1a19089c76d39aea364e9"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c7962442a6bd24",
+      "surface": "[music:inference] 用户可能偏好艺术家「澤野弘之」的作品（基于 4 首收藏）",
+      "query": "喜欢听澤野弘之",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [
+        "mem_1a19089c7962442a6bd24"
+      ],
+      "semantic_top": [
+        {
+          "id": "mem_1a19089c7962442a6bd24",
+          "semantic": 0.2667
+        }
+      ]
+    },
+    {
+      "memory_id": "mem_1a19089c7c505cd591ab2",
+      "surface": "[music:inference] 用户可能偏好艺术家「ヨルシカ」的作品（基于 4 首收藏）",
+      "query": "喜欢听ヨルシカ",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c80a8fbc29abc2",
+      "surface": "[music:inference] 用户可能偏好艺术家「YOASOBI」的作品（基于 4 首收藏）",
+      "query": "喜欢听YOASOBI",
+      "fts_ids": [
+        "mem_1a19089c80a8fbc29abc2"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c832f006461c09",
+      "surface": "[music:inference] 用户可能偏好艺术家「EGOIST」的作品（基于 4 首收藏）",
+      "query": "喜欢听EGOIST",
+      "fts_ids": [
+        "mem_1a19089c832f006461c09"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c876d6fa67ce27",
+      "surface": "[music:inference] 用户可能偏好艺术家「米津玄師」的作品（基于 4 首收藏）",
+      "query": "喜欢听米津玄師",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [
+        "mem_1a19089c876d6fa67ce27"
+      ],
+      "semantic_top": [
+        {
+          "id": "mem_1a19089c876d6fa67ce27",
+          "semantic": 0.2667
+        }
+      ]
+    },
+    {
+      "memory_id": "mem_1a19089c8b5d9cf8d89f7",
+      "surface": "[music:inference] 用户可能偏好艺术家「Kirara Magic」的作品（基于 3 首收藏）",
+      "query": "喜欢听Kirara Magic",
+      "fts_ids": [
+        "mem_1a19089c8b5d9cf8d89f7"
+      ],
+      "fts_recall": 1.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    },
+    {
+      "memory_id": "mem_1a19089c8e265cd236487",
+      "surface": "[music:inference] 用户可能偏好艺术家「遊助」的作品（基于 3 首收藏）",
+      "query": "喜欢听遊助",
+      "fts_ids": [],
+      "fts_recall": 0.0,
+      "assist_novel_hits": [],
+      "semantic_top": []
+    }
+  ],
+  "generated_at": "2026-10-31T07:45:40Z"
+}

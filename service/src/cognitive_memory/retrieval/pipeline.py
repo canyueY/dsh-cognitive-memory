@@ -58,6 +58,10 @@ def run_retrieve(
     mode: str = "current",
     spatiotemporal_rerank: bool = True,
     emotion_rerank: bool = False,
+    semantic_assist: bool = True,
+    semantic_weight: float = 0.25,
+    ab_experiment: bool = False,
+    ab_subject_key: str = "",
     token_budget: int | None = None,
     types: list | None = None,
 ) -> dict[str, Any]:
@@ -73,7 +77,21 @@ def run_retrieve(
         "channels": [],
         "deepened": False,
         "error": None,
+        "ab": None,
     }
+    assist_flag = bool(semantic_assist)
+    if ab_experiment:
+        from cognitive_memory.governance.ab_experiment import resolve_semantic_assist_arm
+
+        ab = resolve_semantic_assist_arm(
+            service.db,
+            enabled=True,
+            subject_key=ab_subject_key or "",
+            query=query,
+        )
+        trace["ab"] = ab
+        if ab.get("active") and ab.get("override") is not None:
+            assist_flag = bool(ab["override"])
 
     if not plan.should_retrieve:
         return {
@@ -139,6 +157,33 @@ def run_retrieve(
                     "source_ids": m.source_ids,
                     "score": sc,
                     "metadata": m.metadata,
+                    "authoritative": True,
+                }
+            )
+
+        if assist_flag and items:
+            from cognitive_memory.retrieval.semantic_sidepath import assist_rerank
+
+            assisted = assist_rerank(
+                query, items, weight=float(semantic_weight)
+            )
+            items = assisted.get("items") or items
+            trace["channels"].append(
+                {
+                    "name": "semantic_assist",
+                    "assistive_only": True,
+                    "authoritative": False,
+                    "weight": float(semantic_weight),
+                    "note": "never_verification",
+                }
+            )
+        elif ab_experiment and items:
+            trace["channels"].append(
+                {
+                    "name": "semantic_assist",
+                    "skipped": True,
+                    "reason": "ab_control_or_locked",
+                    "assistive_only": True,
                 }
             )
 

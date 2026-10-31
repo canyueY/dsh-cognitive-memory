@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "source_db": "C:\\Users\\残月Y\\AppData\\Local\\Mnemosyne Memory Bank\\data\\memory.db",
+  "shadow_db": "d:\\HuaweiMoveData\\Users\\残月Y\\Desktop\\桌宠\\dsh-mnemosyne\\service\\docs\\2.0\\fixtures\\shadow_replay\\live_shadow.db",
+  "scanned": 100,
+  "proposed": 100,
+  "same_as": 0,
+  "unresolved": 74,
+  "atoms": 26,
+  "errors": [],
+  "generated_at": "2026-10-31T07:26:05Z"
+}
