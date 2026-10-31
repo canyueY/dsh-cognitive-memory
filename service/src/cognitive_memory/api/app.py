@@ -539,6 +539,8 @@ def create_app(
             mode=body.mode,
             spatiotemporal_rerank=body.spatiotemporal_rerank,
             emotion_rerank=body.emotion_rerank,
+            semantic_assist=bool(body.semantic_assist),
+            semantic_weight=float(body.semantic_weight),
             token_budget=body.token_budget,
             types=body.types,
         )
@@ -868,6 +870,21 @@ def create_app(
             actor=body.actor or access.actor_id,
             authorized=True,
             evidence_still_valid=body.evidence_still_valid,
+        )
+
+    @app.post(f"{pref}/claims/semantic-suggest")
+    def claims_semantic_suggest(
+        body: dict[str, Any],
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.semantic_suggest")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().semantic_suggest(
+            str(body.get("query") or ""),
+            bank_id=str(body.get("bank_id") or "personal"),
+            limit=int(body.get("limit") or 5),
+            min_score=float(body.get("min_score") or 0.35),
         )
 
     @app.get(f"{pref}/schemas")

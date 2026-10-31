@@ -11,7 +11,7 @@
 | P1 Semantic Contract Freeze | **COMPLETED** |
 | P1.5 Governance Closure | **COMPLETED** |
 | P2 Claim Vertical Slice | **COMPLETED** |
-| P3 Evidence Objects | **IN PROGRESS**（对象表 + store + API 首切片） |
+| P3 Evidence Objects | **IN PROGRESS**（对象 + 语义旁路已接通） |
 
 ## P2 Claim Vertical Slice — COMPLETED
 
@@ -26,20 +26,19 @@
 
 ### 已完成
 
-- 草案：`docs/2.0/EVIDENCE_OBJECT_DRAFT.md`
+- 草案：`docs/2.0/EVIDENCE_OBJECT_DRAFT.md` + `SEMANTIC_SIDEPATH.md`
 - 迁移 `010_evidence_objects_v1`
-- `EvidenceObjectStore`：create / from_observation / legacy map / fingerprint dedupe / independence_key
+- `EvidenceObjectStore` + Verified 前 independence gate
 - Claim attach 物化 `evd_*`；legacy `/evidence` 同步物化
-- API：`POST /evidences`、`GET /evidences/{id}`、`POST /evidences/independence`
-- 测试：`test_p3_evidence_objects.py`（7 passed）
-- 约束：不伪造 provenance；不自动 `complete`
+- 语义旁路：`assist_rerank` / `pool_suggest` / `evaluate_assist`；retrieve 默认 `semantic_assist`
+- `ClaimStore.semantic_suggest` + `POST /claims/semantic-suggest`（永不 Verified）
+- 测试：`test_p3_evidence_objects` + `test_p3_semantic_sidepath`
 
 ### 未完成
 
-- Evidence→Verification 独立性硬门（提交 Verified 前强制 independence check）
-- 语义检索主路径评估（不替代证据）
-- 生产库只读 Evidence shadow 抽样
+- 生产库只读 Evidence / semantic eval 抽样报告
+- 语义旁路 online A/B 指标（可选）
 
 ### 下一步
 
-Verified 路径接入 independence gate；语义检索旁路实验；禁止 LLM Verified / 生产回填。
+合入 PR #1；可选 live eval 报告；禁止 LLM Verified / 生产回填；P4 TMS 另立项。

@@ -224,6 +224,9 @@ class RetrieveIn(BaseModel):
     mode: str = "current"
     spatiotemporal_rerank: bool = True
     emotion_rerank: bool = False
+    # P3：语义旁路加分；不可作为 Verified / Evidence 替代
+    semantic_assist: bool = True
+    semantic_weight: float = 0.25
     token_budget: int | None = None
     types: list[MemoryType] | None = None
 

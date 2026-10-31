@@ -577,6 +577,56 @@ class ClaimStore:
             "trace_id": tid,
         }
 
+    def semantic_suggest(
+        self,
+        query: str,
+        *,
+        bank_id: str = "personal",
+        limit: int = 5,
+        min_score: float = 0.35,
+    ) -> dict[str, Any]:
+        """Assistive Claim recall by surface similarity — never Verified."""
+        from cognitive_memory.retrieval.semantic_sidepath import pool_suggest
+
+        with self.db.exclusive() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, surface, lifecycle, verification_status, bank_id
+                FROM claims
+                WHERE bank_id=? AND redirects_to IS NULL
+                ORDER BY updated_at DESC LIMIT 200
+                """,
+                (bank_id,),
+            ).fetchall()
+            if conn.in_transaction:
+                conn.commit()
+        corpus = [
+            {
+                "id": r["id"],
+                "surface": r["surface"],
+                "lifecycle": r["lifecycle"],
+                "verification_status": r["verification_status"],
+            }
+            for r in rows
+        ]
+        pack = pool_suggest(
+            query,
+            corpus,
+            limit=limit,
+            min_score=min_score,
+            content_key="surface",
+        )
+        pack["verification_status"] = "unverified"
+        pack["note"] = "semantic_claim_suggest_never_verified"
+        tid = self._record_trace(
+            "claim.semantic_suggest",
+            input_refs=[query[:64]],
+            output_refs=[str(x.get("id")) for x in pack.get("items") or []],
+            reason_codes=["assistive_only"],
+        )
+        pack["trace_id"] = tid
+        return pack
+
     def _row_to_dict(self, row: Any) -> dict[str, Any]:
         try:
             ast = json.loads(row["ast_json"] or "{}")

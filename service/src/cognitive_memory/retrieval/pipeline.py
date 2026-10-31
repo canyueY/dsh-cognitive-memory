@@ -58,6 +58,8 @@ def run_retrieve(
     mode: str = "current",
     spatiotemporal_rerank: bool = True,
     emotion_rerank: bool = False,
+    semantic_assist: bool = True,
+    semantic_weight: float = 0.25,
     token_budget: int | None = None,
     types: list | None = None,
 ) -> dict[str, Any]:
@@ -139,6 +141,24 @@ def run_retrieve(
                     "source_ids": m.source_ids,
                     "score": sc,
                     "metadata": m.metadata,
+                    "authoritative": True,
+                }
+            )
+
+        if semantic_assist and items:
+            from cognitive_memory.retrieval.semantic_sidepath import assist_rerank
+
+            assisted = assist_rerank(
+                query, items, weight=float(semantic_weight)
+            )
+            items = assisted.get("items") or items
+            trace["channels"].append(
+                {
+                    "name": "semantic_assist",
+                    "assistive_only": True,
+                    "authoritative": False,
+                    "weight": float(semantic_weight),
+                    "note": "never_verification",
                 }
             )
 
