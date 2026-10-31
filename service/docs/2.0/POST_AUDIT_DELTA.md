@@ -64,7 +64,7 @@ value_soft_prefs
 
 | 套件 | 结果 |
 |---|---|
-| Python service tests | **221 passed, 1 warning in 20.36s** |
+| Python service tests | **237 passed, 1 warning in 26.56s** |
 | Node plugin tests | **7 passed** |
 | `npm run check` | 通过 |
 | `node src/test/host-compat-021.mjs` | **2 passed** |

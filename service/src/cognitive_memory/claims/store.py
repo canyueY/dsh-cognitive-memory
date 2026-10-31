@@ -63,6 +63,51 @@ class ClaimStore:
         )
         return tr.trace_id if tr else None
 
+    def _record_decision(
+        self,
+        *,
+        claim_id: str,
+        operation: str,
+        previous_status: str,
+        next_status: str,
+        reason: str,
+        actor: str,
+        evidence_refs: list[str] | None,
+        replacement_claim_id: str | None,
+        trace_id: str | None,
+        confidence: float | None = None,
+        decision_at: str | None = None,
+    ) -> str:
+        did = _new_id("cdec")
+        now = decision_at or _now()
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO claim_decision_records(
+                  id, claim_id, operation, previous_status, next_status,
+                  trigger_evidence_json, replacement_claim_id, reason,
+                  decision_at, actor, confidence, trace_id, schema_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    did,
+                    claim_id,
+                    operation,
+                    previous_status,
+                    next_status,
+                    json.dumps(list(evidence_refs or []), ensure_ascii=False),
+                    replacement_claim_id,
+                    reason,
+                    now,
+                    actor,
+                    confidence,
+                    trace_id,
+                    "claim.decision.v1",
+                    now,
+                ),
+            )
+        return did
+
     def propose_from_text(
         self,
         text: str,
@@ -71,6 +116,8 @@ class ClaimStore:
         source_memory_id: str | None = None,
         scope: dict[str, Any] | None = None,
         persist_unresolved: bool = True,
+        validity_from: str | None = None,
+        validity_to: str | None = None,
     ) -> dict[str, Any]:
         """Parse → normalize → persist Claim (lifecycle=proposed). Never verified."""
         parsed = parse_memory_text(text)
@@ -118,6 +165,8 @@ class ClaimStore:
             "scope_json": json.dumps(ast.scope or {}, ensure_ascii=False),
             "source_memory_id": source_memory_id,
             "redirects_to": None,
+            "validity_from": validity_from,
+            "validity_to": validity_to,
             "created_at": now,
             "updated_at": now,
         }
@@ -127,8 +176,8 @@ class ClaimStore:
                 INSERT INTO claims(
                   id, bank_id, ast_version, ast_json, surface, normalized_hash,
                   lifecycle, verification_status, scope_json, source_memory_id,
-                  redirects_to, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  redirects_to, created_at, updated_at, validity_from, validity_to
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     row["id"],
@@ -144,6 +193,8 @@ class ClaimStore:
                     row["redirects_to"],
                     row["created_at"],
                     row["updated_at"],
+                    row["validity_from"],
+                    row["validity_to"],
                 ),
             )
             conn.execute(
@@ -172,6 +223,18 @@ class ClaimStore:
             output_refs=[cid],
             reason_codes=["unresolved"] if ast.is_unresolved() else ["parsed"],
         )
+        did = self._record_decision(
+            claim_id=cid,
+            operation="propose",
+            previous_status=ClaimLifecycle.PROPOSED.value,
+            next_status=ClaimLifecycle.PROPOSED.value,
+            reason="parse_and_persist",
+            actor="system",
+            evidence_refs=[],
+            replacement_claim_id=None,
+            trace_id=tid,
+            decision_at=now,
+        )
         return {
             "ok": True,
             "persisted": True,
@@ -180,6 +243,7 @@ class ClaimStore:
             "ast": ast.model_dump(),
             "unresolved": ast.is_unresolved(),
             "trace_id": tid,
+            "decision_id": did,
         }
 
     def get(
@@ -357,12 +421,19 @@ class ClaimStore:
         reason: str,
         evidence_refs: list[str] | None = None,
         actor: str = "",
+        replacement_claim_id: str | None = None,
+        confidence: float | None = None,
+        decision_at: str | None = None,
     ) -> dict[str, Any]:
         claim = self.get(claim_id, follow_redirect=False)
         if not claim:
             return {"ok": False, "detail": "claim_not_found"}
         if claim.get("redirects_to"):
             return {"ok": False, "detail": "claim_redirected", "redirects_to": claim["redirects_to"]}
+        if replacement_claim_id:
+            replacement = self.get(replacement_claim_id, follow_redirect=True)
+            if not replacement:
+                return {"ok": False, "detail": "replacement_claim_not_found"}
         # sync in-memory engine from DB
         self._life._status[claim_id] = ClaimLifecycle(str(claim.get("lifecycle") or "proposed"))
         result = self._life.transition_claim(
@@ -380,18 +451,50 @@ class ClaimStore:
                 "result": result.model_dump(),
             }
         assert result.to_status is not None
-        now = _now()
+        now = decision_at or _now()
+        tid = self._record_trace(
+            "claim.transition",
+            input_refs=[claim_id],
+            output_refs=[claim_id],
+            evidence_refs=list(evidence_refs or []),
+            reason_codes=[result.from_status.value, result.to_status.value, reason],
+            governance_critical=result.to_status
+            in (ClaimLifecycle.VERIFIED, ClaimLifecycle.REJECTED, ClaimLifecycle.SUPERSEDED,
+                ClaimLifecycle.RETRACTED, ClaimLifecycle.EXPIRED),
+        )
+        did = _new_id("cdec")
+        target = result.to_status
+        sets = ["lifecycle=?", "updated_at=?"]
+        params: list[Any] = [target.value, now]
+        if target in (ClaimLifecycle.SUPERSEDED, ClaimLifecycle.RETRACTED, ClaimLifecycle.EXPIRED):
+            sets.append("validity_to=COALESCE(validity_to, ?)")
+            params.append(now)
+        if target == ClaimLifecycle.SUPERSEDED:
+            sets.append("superseded_at=?")
+            params.append(now)
+            if replacement_claim_id:
+                sets.append("superseded_by=?")
+                params.append(replacement_claim_id)
+        elif target == ClaimLifecycle.RETRACTED:
+            sets.append("retracted_at=?")
+            params.append(now)
+        elif target == ClaimLifecycle.EXPIRED:
+            sets.append("expired_at=?")
+            params.append(now)
+        elif target == ClaimLifecycle.VERIFIED:
+            sets.append("last_confirmed_at=?")
+            params.append(now)
         with self.db.transaction() as conn:
             conn.execute(
-                "UPDATE claims SET lifecycle=?, updated_at=? WHERE id=?",
-                (result.to_status.value, now, claim_id),
+                f"UPDATE claims SET {', '.join(sets)} WHERE id=?",
+                (*params, claim_id),
             )
             conn.execute(
                 """
                 INSERT INTO claim_lifecycle_events(
                   id, claim_id, from_status, to_status, reason, actor,
-                  policy_version, evidence_refs_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  policy_version, evidence_refs_json, created_at, trace_id, decision_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     _new_id("cle"),
@@ -403,36 +506,153 @@ class ClaimStore:
                     result.policy_version,
                     json.dumps(list(evidence_refs or []), ensure_ascii=False),
                     now,
+                    tid,
+                    did,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO claim_decision_records(
+                  id, claim_id, operation, previous_status, next_status,
+                  trigger_evidence_json, replacement_claim_id, reason,
+                  decision_at, actor, confidence, trace_id, schema_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    did,
+                    claim_id,
+                    target.value,
+                    result.from_status.value,
+                    target.value,
+                    json.dumps(list(evidence_refs or []), ensure_ascii=False),
+                    replacement_claim_id,
+                    reason,
+                    now,
+                    actor,
+                    confidence,
+                    tid,
+                    "claim.decision.v1",
+                    now,
                 ),
             )
         tms_pack: dict[str, Any] | None = None
-        if result.to_status in (
+        impact: dict[str, Any] | None = None
+        if target in (
             ClaimLifecycle.DISPUTED,
             ClaimLifecycle.REJECTED,
             ClaimLifecycle.SUPERSEDED,
+            ClaimLifecycle.RETRACTED,
             ClaimLifecycle.EXPIRED,
         ):
             tms_pack = self.tms.invalidate_node(
-                claim_id, reason=f"lifecycle:{result.to_status.value}", actor=actor
+                claim_id, reason=f"lifecycle:{target.value}", actor=actor
             )
-        tid = self._record_trace(
-            "claim.transition",
-            input_refs=[claim_id],
-            output_refs=[claim_id],
-            evidence_refs=list(evidence_refs or []),
-            reason_codes=[result.from_status.value, result.to_status.value, reason],
-            governance_critical=result.to_status
-            in (ClaimLifecycle.VERIFIED, ClaimLifecycle.REJECTED, ClaimLifecycle.SUPERSEDED),
-        )
+            try:
+                impact = self.tms.engine.impact(claim_id, max_nodes=32)
+            except Exception:
+                impact = None
         return {
             "ok": True,
             "claim_id": claim_id,
             "from_status": result.from_status.value,
-            "to_status": result.to_status.value,
+            "to_status": target.value,
             "claim": self.get(claim_id),
             "trace_id": tid,
+            "decision_id": did,
+            "decision": {
+                "decision_id": did,
+                "operation": target.value,
+                "previous_status": result.from_status.value,
+                "next_status": target.value,
+                "trigger_evidence": list(evidence_refs or []),
+                "replacement_claim_id": replacement_claim_id,
+                "reason": reason,
+                "decision_at": now,
+                "actor": actor,
+                "confidence": confidence,
+                "trace_id": tid,
+                "schema_version": "claim.decision.v1",
+            },
             "tms": tms_pack,
+            "impact": impact,
         }
+
+    def supersede(
+        self,
+        claim_id: str,
+        replacement_claim_id: str,
+        *,
+        reason: str = "",
+        evidence_refs: list[str] | None = None,
+        actor: str = "",
+        confidence: float | None = None,
+    ) -> dict[str, Any]:
+        return self.transition(
+            claim_id,
+            ClaimLifecycle.SUPERSEDED,
+            reason=reason or "superseded_by_new_claim",
+            evidence_refs=evidence_refs,
+            actor=actor,
+            replacement_claim_id=replacement_claim_id,
+            confidence=confidence,
+        )
+
+    def retract(self, claim_id: str, *, reason: str, evidence_refs: list[str] | None = None,
+                actor: str = "", confidence: float | None = None) -> dict[str, Any]:
+        return self.transition(
+            claim_id,
+            ClaimLifecycle.RETRACTED,
+            reason=reason or "retracted",
+            evidence_refs=evidence_refs,
+            actor=actor,
+            confidence=confidence,
+        )
+
+    def expire(self, claim_id: str, *, reason: str, evidence_refs: list[str] | None = None,
+               actor: str = "", confidence: float | None = None) -> dict[str, Any]:
+        return self.transition(
+            claim_id,
+            ClaimLifecycle.EXPIRED,
+            reason=reason or "expired",
+            evidence_refs=evidence_refs,
+            actor=actor,
+            confidence=confidence,
+        )
+
+    def list_decisions(self, claim_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        lim = max(1, min(200, int(limit or 50)))
+        with self.db.exclusive() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM claim_decision_records
+                WHERE claim_id=? ORDER BY decision_at DESC LIMIT ?
+                """,
+                (claim_id, lim),
+            ).fetchall()
+            if conn.in_transaction:
+                conn.commit()
+        out = []
+        for r in rows:
+            try:
+                refs = json.loads(r["trigger_evidence_json"] or "[]")
+            except json.JSONDecodeError:
+                refs = []
+            out.append({
+                "decision_id": r["id"],
+                "claim_id": r["claim_id"],
+                "operation": r["operation"],
+                "previous_status": r["previous_status"],
+                "next_status": r["next_status"],
+                "trigger_evidence": refs,
+                "replacement_claim_id": r["replacement_claim_id"],
+                "reason": r["reason"],
+                "decision_at": r["decision_at"],
+                "actor": r["actor"],
+                "confidence": r["confidence"],
+                "trace_id": r["trace_id"],
+                "schema_version": r["schema_version"],
+            })
+        return out
 
     def submit_verified(
         self,
@@ -496,12 +716,13 @@ class ClaimStore:
             conn.execute(
                 """
                 UPDATE claims
-                SET verification_status=?, lifecycle=?, updated_at=?
+                SET verification_status=?, lifecycle=?, last_confirmed_at=?, updated_at=?
                 WHERE id=?
                 """,
                 (
                     VerificationStatus.VERIFIED.value,
                     ClaimLifecycle.VERIFIED.value,
+                    now,
                     now,
                     claim_id,
                 ),
@@ -541,12 +762,25 @@ class ClaimStore:
             reason_codes=["verified", "tms_justification"],
             governance_critical=True,
         )
+        did = self._record_decision(
+            claim_id=claim_id,
+            operation="verified",
+            previous_status=life,
+            next_status=ClaimLifecycle.VERIFIED.value,
+            reason="submit_verified",
+            actor=actor,
+            evidence_refs=list(evidence_refs),
+            replacement_claim_id=None,
+            trace_id=tid,
+            decision_at=now,
+        )
         return {
             "ok": True,
             "claim_id": claim_id,
             "record": record.model_dump(mode="json"),
             "claim": self.get(claim_id),
             "trace_id": tid,
+            "decision_id": did,
             "tms": tms_pack,
         }
 
@@ -562,17 +796,32 @@ class ClaimStore:
         if source_id == resolved_target:
             return {"ok": False, "detail": "self_redirect"}
         now = _now()
+        tid = self._record_trace(
+            "claim.redirect",
+            input_refs=[source_id],
+            output_refs=[resolved_target],
+            reason_codes=[reason, "superseded", "tms_invalidate"],
+            governance_critical=True,
+        )
+        did = _new_id("cdec")
         with self.db.transaction() as conn:
             conn.execute(
-                "UPDATE claims SET redirects_to=?, lifecycle=?, updated_at=? WHERE id=?",
-                (resolved_target, ClaimLifecycle.SUPERSEDED.value, now, source_id),
+                """
+                UPDATE claims SET redirects_to=?, lifecycle=?, updated_at=?,
+                  superseded_at=COALESCE(superseded_at, ?),
+                  superseded_by=?,
+                  validity_to=COALESCE(validity_to, ?)
+                WHERE id=?
+                """,
+                (resolved_target, ClaimLifecycle.SUPERSEDED.value, now,
+                 now, resolved_target, now, source_id),
             )
             conn.execute(
                 """
                 INSERT INTO claim_lifecycle_events(
                   id, claim_id, from_status, to_status, reason, actor,
-                  policy_version, evidence_refs_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  policy_version, evidence_refs_json, created_at, trace_id, decision_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     _new_id("cle"),
@@ -584,24 +833,42 @@ class ClaimStore:
                     "claim.lifecycle.v1",
                     json.dumps([resolved_target], ensure_ascii=False),
                     now,
+                    tid,
+                    did,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO claim_decision_records(
+                  id, claim_id, operation, previous_status, next_status,
+                  trigger_evidence_json, replacement_claim_id, reason,
+                  decision_at, actor, confidence, trace_id, schema_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    did, source_id, ClaimLifecycle.SUPERSEDED.value,
+                    str(src.get("lifecycle") or "proposed"),
+                    ClaimLifecycle.SUPERSEDED.value,
+                    json.dumps([resolved_target], ensure_ascii=False),
+                    resolved_target, reason, now, "system", None, tid,
+                    "claim.decision.v1", now,
                 ),
             )
         tms_pack = self.tms.invalidate_node(
             source_id, reason=f"redirect:{resolved_target}", actor="system"
         )
-        tid = self._record_trace(
-            "claim.redirect",
-            input_refs=[source_id],
-            output_refs=[resolved_target],
-            reason_codes=[reason, "superseded", "tms_invalidate"],
-            governance_critical=True,
-        )
+        try:
+            impact = self.tms.engine.impact(source_id, max_nodes=32)
+        except Exception:
+            impact = None
         return {
             "ok": True,
             "source_id": source_id,
             "redirects_to": resolved_target,
             "claim": self.get(source_id, follow_redirect=False),
             "trace_id": tid,
+            "decision_id": did,
+            "impact": impact,
             "tms": tms_pack,
         }
 
@@ -818,6 +1085,13 @@ class ClaimStore:
             "scope": scope,
             "source_memory_id": row["source_memory_id"],
             "redirects_to": row["redirects_to"],
+            "validity_from": row["validity_from"] if "validity_from" in row.keys() else None,
+            "validity_to": row["validity_to"] if "validity_to" in row.keys() else None,
+            "superseded_at": row["superseded_at"] if "superseded_at" in row.keys() else None,
+            "superseded_by": row["superseded_by"] if "superseded_by" in row.keys() else None,
+            "retracted_at": row["retracted_at"] if "retracted_at" in row.keys() else None,
+            "expired_at": row["expired_at"] if "expired_at" in row.keys() else None,
+            "last_confirmed_at": row["last_confirmed_at"] if "last_confirmed_at" in row.keys() else None,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

@@ -27,6 +27,13 @@
 | P6 Knowledge | Knowledge 判别式节点 | 任务书 P4 下游 |
 | P7 Claim-stack GA | `mnemosyne_claim_ga_check.py` | **不是**任务书 P7 |
 
+## Judgment Supersession
+
+- 已实现 Claim `superseded_at` / `retracted_at` / `expired_at` / `validity` / `last_confirmed_at`；
+- 已实现 `claim_decision_records` 与 API；
+- 已有 7 项时间测试；
+- 仍未实现 as-of 历史重建、完整 Replay、下游自动重评。详见 [TEMPORAL_TRACEABILITY.md](TEMPORAL_TRACEABILITY.md)。
+
 ## 硬约束（仍生效）
 
 - 禁止静默 / LLM Verified；`confirm` ≠ 授权
