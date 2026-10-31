@@ -47,6 +47,73 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 
 *八个维度看差异；真正要守住的是运行时四件事：数据目录、记忆格式、API / 证据链、权限边界。*
 
+### 3.0 升级内容
+
+3.0 不是功能堆叠，而是把 2.0 的独立 Node 与 DSH 插件壳收敛为一个发布单元。
+
+| 类别 | 升级内容 |
+| --- | --- |
+| 仓库 | `canyueY/mnemosyne` + `canyueY/dsh-mnemosyne` → 一个 `canyueY/dsh-mnemosyne` |
+| Node | 从仓库根目录迁入 `service/`；Node / Core / Memory Bank 实现不变 |
+| DSH 插件 | 根目录 `src/` + `package.json` 保留为适配层；启动并守护 `service/` |
+| 版本 | Node 2.0.0 / 插件 0.2.0 → 统一 `3.0.0` |
+| 旧插件 | 0.2 完整归档到 `legacy/dsh-plugin/`，保留 tag `legacy/dsh-plugin-0.2.0` |
+| 文档 | 3.0 README + `service/docs/` + 新的 `REPO_BASELINE` |
+| 数据 | **不迁移**：继续使用 `%LOCALAPPDATA%\Mnemosyne Memory Bank` |
+| 兼容 | REST 前缀 `/api/v1`、记忆格式、权限与证据链保持原协议 |
+
+#### 从 2.0 升级
+
+建议**新目录 clone**，不要把旧 2.0 工作区直接覆盖：
+
+```bash
+git clone https://github.com/canyueY/dsh-mnemosyne.git
+cd dsh-mnemosyne
+python -m venv .venv
+```
+
+Windows：
+
+```powershell
+.venv\Scripts\activate
+```
+
+Linux / macOS：
+
+```bash
+source .venv/bin/activate
+```
+
+安装 3.0 Node：
+
+```bash
+pip install -e "./service[dev]"
+mnemosyne doctor
+mnemosyne start
+```
+
+DSH 插件升级：
+
+```bash
+dsh plugin --profile web add github:canyueY/dsh-mnemosyne#main
+```
+
+升级后确认：
+
+```text
+数据目录仍为 %LOCALAPPDATA%\Mnemosyne Memory Bank
+REST 仍为 /api/v1
+旧 DSH\cognitive-memory 只作为归档，不再作为默认路径
+```
+
+> **不需要迁移记忆数据。** 3.0 变的是代码位置、仓库边界和发布版本；Memory Bank 的数据目录、记忆格式和 API 语义保持兼容。
+
+#### 回退
+
+- 需要查看 2.0 源码：`git checkout v2.0.0`（历史 tag，目录为旧根结构）；
+- 需要旧 DSH 插件：使用 tag `legacy/dsh-plugin-0.2.0` 或归档目录；
+- 旧 `canyueY/mnemosyne` 仓库已归档，不再接收新修复。
+
 > 3.0 是合并后的全新版本：不再把 DSH 插件壳与 Node 分成两个仓库维护。旧 npm 包 `dsh-mnemosyne@0.2` 仍可在 npm 历史中安装，但不再接收新能力。
 
 迁移细节与版本兼容见 [`MIGRATION_3.0.md`](MIGRATION_3.0.md)。
