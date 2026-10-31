@@ -832,11 +832,12 @@ def create_app(
         ),
     ) -> dict[str, Any]:
         # Peek bank without visibility first (node-only internal); then re-get with principal
+        from cognitive_memory.security.disclosure import opaque_not_found
+
         raw = _claim_store().get(claim_id, follow_redirect=False, principal=None)
         if not raw:
-            raise HTTPException(
-                status_code=404, detail={"code": "not_found", "message": "claim"}
-            )
+            # Same opaque body as visibility DENY (no existence distinction).
+            raise HTTPException(status_code=404, detail=opaque_not_found(resource="claim"))
         bank = str(raw.get("bank_id") or "personal")
         if access.is_node_admin:
             # Node admin still evaluated against default personal unless grants list banks
@@ -850,9 +851,7 @@ def create_app(
             principal = access.to_security_context(default_bank=bank)
         pack = _claim_store().get(claim_id, principal=principal)
         if not pack:
-            raise HTTPException(
-                status_code=404, detail={"code": "not_found", "message": "claim"}
-            )
+            raise HTTPException(status_code=404, detail=opaque_not_found(resource="claim"))
         return {"ok": True, "claim": pack}
 
     @app.post(f"{pref}/claims/{{claim_id}}/transition")

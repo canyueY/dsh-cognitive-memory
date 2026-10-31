@@ -2,10 +2,10 @@
 
 **任务书：** `10.31更新方案.txt`（2143 行）  
 **任务书基线：** `c82d47e`  
-**当前代码：** `9eb9b93`（P2–P7 + DSH 0.2.1 修复）  
-**当前文档：** `d59fa21`（含宿主 E2E 记录）  
-**审计日期：** 2026-10-31  
-**结论：** **不能按任务书宣称“全部完成”。** 代码主干推进很大，但任务书中的 P7、P8、P9 仍未达到验收条件；P2 也有明确缺口。
+**当前代码：** `feat/taskbook-p7-p8-p9-continue`（P7 加深 + P8 全链路 + P9 dry-run）  
+**基线合并：** `e3a218b`（PR #5）  
+**审计日期：** 2026-10-31（续）  
+**结论：** **仍不能按任务书宣称“全部完成”。** P7/P8 已近完成；P9 仅有 provenance 门禁 dry-run（complete_rate=0 禁止写生产）；P6 真实 prop 数据与发布/回滚演练仍缺。
 
 ---
 
@@ -54,16 +54,16 @@ P9 Migration & Release
 |---|---|---|---|
 | P0 Repository Audit | 7 份审计文档 + `POST_AUDIT_DELTA` | **COMPLETED** | 无 |
 | P0.5 Migration Spike | `P0_5_MIGRATION_SPIKE_REPORT.md`、100 条样本、fixtures | **COMPLETED（有重大发现）** | provenance_complete=0；S8/S9 样本覆盖不足；只读 |
-| P1 Contract Freeze | `contracts/` 13 份、P1 测试 | **PARTIAL** | 多数 contract 只有几十行，字段/算法未完全冻结 |
+| P1 Contract Freeze | 核心契约已补字段/算法 | **NEAR COMPLETE** | 其余摘要契约可继续加厚 |
 | P1.5 Governance Closure | `schema_ops`/`schema_network` 接入 `SCHEMA_MUTATION`；`test_schema_gate` | **COMPLETED** | 需确认所有旧入口都覆盖 |
-| P2 Claim Vertical Slice | `claims/` + Merge/Split/Relation + S1–S20 | **NEAR COMPLETE** | P1 契约仍偏薄；生产规模关系评测未做 |
+| P2 Claim Vertical Slice | `claims/` + Merge/Split/Relation + S1–S20 | **NEAR COMPLETE** | 生产规模关系评测未做 |
 | P3 Evidence Independence | `evidence/object_store.py`、P3 测试、independence | **COMPLETED（代码层）** | 生产历史迁移未做 |
 | P4 Knowledge & Truth Maintenance | `tms/`、`knowledge/`、P4/P6 测试 | **COMPLETED（代码层）** | 生产规模验证未做 |
 | P5 Experience & Strategy | `strategy/`、Experience、StrategyLog、P5 测试 | **COMPLETED（代码层）** | 真实任务数据少 |
 | P6 Strategy Evaluation & MetaController | A/B、propensity、offline eval、metacontroller | **PARTIAL** | 真实 prop/overlap 数据不足；调度未做生产验证 |
-| P7 Fault Localization & Repair Validation | `fault/` + `015_fault_v1` + pipeline 测试 | **IN PROGRESS** | 故障注入覆盖面仍窄；历史回放/回滚仍为记录型演练 |
-| P8 Security Hardening & DSH Integration | Visibility/SecurityContext；DSH 0.2.1 宿主 E2E | **PARTIAL** | 推理泄漏、缓存撤销、完整删除传播、跨 Bank 全链路 |
-| P9 Migration & Release | 仅有 P0.5 只读 spike | **MISSING** | Claim 迁移、dry run、批次、回滚、发布 |
+| P7 Fault Localization & Repair Validation | inject×4 + auto-repair + 全 stage | **NEAR COMPLETE** | 回滚仍为记录型演练；未接生产故障流 |
+| P8 Security Hardening & DSH Integration | disclosure + grant_cache + cascade 全链 | **NEAR COMPLETE** | 跨 Bank 授权系统测试可再扩 |
+| P9 Migration & Release | `claim_dry_run` provenance 门禁 | **PARTIAL** | 禁止写生产；缺批次试迁移/发布/回滚演练 |
 
 ---
 
@@ -197,25 +197,21 @@ Invariant Violation
 | 12 | Strategy 关联上下文/依据/结果 | 通过（代码/测试） |
 | 13 | 策略效果可验证 | **部分**（真实 prop/overlap 数据不足） |
 | 14 | MetaController 调度 | **部分**（有实现，生产验证不足） |
-| 15 | 故障定位/修复有复现/回归/回滚 | **部分**（P7 pipeline 已落地；注入面仍窄） |
+| 15 | 故障定位/修复有复现/回归/回滚 | **通过（代码/演练）**；生产回滚未跑 |
 | 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，回放/完整性未全） |
 | 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，治理全链路未验） |
-| 18 | 3.0 基础功能兼容 | 通过（221 tests） |
-| 19 | 历史迁移可回滚 | **未完成** |
-| 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P9 无） |
+| 18 | 3.0 基础功能兼容 | 通过（240 tests） |
+| 19 | 历史迁移可回滚 | **部分**（dry-run 门禁有；写路径/回滚演练无） |
+| 20 | 核心能力有自动化测试和阶段验收 | **部分**（P7/P8/P9 dry-run 已测；发布验收未做） |
 
 ---
 
 ## 7. 实际验证结果
 
-在 `9eb9b93` 上执行：
+在本轮分支上执行：
 
 ```text
-pytest -q                        221 passed, 1 warning in 20.36s
-npm test                         7 passed
-npm run check                    passed
-host-compat-021.mjs              2 passed
-mnemosyne_claim_ga_check.py      ok: true
+pytest -q                        240 passed in 18.26s
 ```
 
 DSH 宿主：
@@ -230,20 +226,19 @@ DSH 宿主：
 
 任务书完成度应表述为：
 
-> **P0–P6 的主体代码与测试已落地；P2 仍需补 Merge/Split/完整关系；P7 完全缺失；P8 只有部分安全与 DSH 集成；P9 尚未开始。**
+> **P0–P5 / P7–P8 主体已近完成；P1/P2 近完成；P6 缺真实 prop；P9 仅 dry-run 门禁（provenance_complete=0 禁止写生产）。**
 
 不能使用：
 
 ```text
-P0–P7 COMPLETED
+P0–P9 COMPLETED
 ```
 
 来代表任务书全部完成。
 
 建议下一步优先级：
 
-1. 修正 `IMPLEMENTATION_STATUS.md` 的阶段编号和完成声明；
-2. 补齐 P2 Merge/Split、完整 Relation 判定与 20 项测试；
-3. 实现 P7 故障定位/修复验证（先做最小 invariant + fault injection）；
-4. 再做 P9 的 dry-run 迁移和小规模试迁移；
-5. P8 补推理泄漏、缓存撤销、删除传播全链路。
+1. P9：provenance 重建方案 + 小规模只读试迁移报告（仍禁止自动 Verified）；
+2. P6：真实 propensity/overlap 数据与 MetaController 调度验证；
+3. P8：跨 Bank 授权系统测试扩面；
+4. 发布/回滚演练与人工现网签字（外置）。
