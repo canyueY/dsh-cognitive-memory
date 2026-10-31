@@ -1,5 +1,7 @@
 # Mnemosyne 2.0 Readiness Gate（证据账本）
 
+> **3.0 说明：** 本文件是 2.0 历史证据账本；3.0 沿用其中的最小面与测试证据，新的发布口径见 [`REPO_BASELINE.md`](REPO_BASELINE.md)。
+
 > **权威仓：** [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) · **非标尺：** [`dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne)（见 [REPO_BASELINE](REPO_BASELINE.md)）
 
 **状态：** Partial Evidence（2026-10-31）— 最小面可声明就绪；**不等于**正式收纳全体用户  
