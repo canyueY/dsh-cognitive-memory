@@ -1,0 +1,103 @@
+openapi: 3.0.3
+info:
+  title: Mnemosyne API
+  version: "1.0.0"
+  description: 外置演化记忆服务 REST 契约（与 MCP 共用 MemoryService）
+servers:
+  - url: http://127.0.0.1:{port}/api/v1
+    variables:
+      port:
+        default: "8765"
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /memories/search:
+    post:
+      summary: 检索记忆
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /memories:
+    post:
+      summary: 提交候选记忆
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /memories/{id}:
+    get:
+      summary: 获取记忆
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+    patch:
+      summary: 更新记忆
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+        "409":
+          description: 版本冲突
+    delete:
+      summary: 失效或硬删
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /observations:
+    post:
+      summary: 提交观察
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /feedback:
+    post:
+      summary: 反馈
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /contexts/build:
+    post:
+      summary: 构建上下文
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /tasks:
+    post:
+      summary: 创建后台任务
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /tasks/{id}:
+    get:
+      summary: 查询任务
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

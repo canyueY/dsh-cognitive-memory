@@ -74,15 +74,13 @@ function defaultServiceRoot() {
 export { resolveServiceRoot, isServiceRoot };
 
 function defaultDataDir() {
-  const envDir = process.env.DSH_MNEMOSYNE_DATA_DIR
-    || process.env.DSH_MEMORY_DATA_DIR;
+  const envDir = process.env.MNEMOSYNE_MEMORY_BANK
+    || process.env.MNEMOSYNE_DATA_DIR
+    || process.env.DSH_MEMORY_DATA_DIR
+    || process.env.DSH_MNEMOSYNE_DATA_DIR;
   if (envDir) return envDir;
   const local = process.env.LOCALAPPDATA || path.join(os.homedir(), '.local', 'share');
-  const next = path.join(local, 'DSH', 'mnemosyne');
-  const legacy = path.join(local, 'DSH', 'cognitive-memory');
-  // Keep existing memories addressable after the rename.
-  if (!fs.existsSync(next) && fs.existsSync(legacy)) return legacy;
-  return next;
+  return path.join(local, 'Mnemosyne Memory Bank');
 }
 
 function pythonBin() {

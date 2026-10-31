@@ -1,0 +1,19 @@
+# Mnemosyne Service — default config (override via env / CLI)
+host: "127.0.0.1"
+port: 0  # 0 = OS 分配随机端口
+api_prefix: "/api/v1"
+access_token_env: "DSH_MEMORY_TOKEN"
+data_dir: ""  # 空则用 %LOCALAPPDATA%/DSH/mnemosyne
+log_level: "INFO"
+vector_index:
+  enable: false
+fast_path:
+  working_memory_limit: 32
+  context_token_budget: 1200
+slow_path:
+  enable: true
+  poll_interval_ms: 500
+  max_retries: 5
+dispatcher:
+  batch_size: 32
+  poll_interval_ms: 200

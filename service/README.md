@@ -1,244 +1,790 @@
-# mnemosyne · DSH 外置演化记忆服务
+# Mnemosyne Node 3.0
 
-面向 DeepSeek Harness / **丛雨桌宠（DSH）** 的独立演化记忆子进程。完全替代进程内 A-MEM：观察可追溯、推断与事实分离、长期记忆有证据、异步任务可恢复。
+### Modular Evolving Memory Infrastructure for AI Agents
 
-落地索引：[`docs/MNEMOSYNE_SPEC.md`](../docs/MNEMOSYNE_SPEC.md)  
-优化清单与排期：[`docs/MNEMOSYNE_ROADMAP.md`](../docs/MNEMOSYNE_ROADMAP.md)  
-状态机与证据规范：[`docs/MNEMOSYNE_STATE_MACHINE.md`](../docs/MNEMOSYNE_STATE_MACHINE.md)  
-DSH 插件：[`dsh-mnemosyne`](../../_dsh_plugins/dsh-mnemosyne)
+让 Agent 不只是记住过去，而是能够理解变化、积累经验，并修正自己。
 
-### 核心链路
+Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
 
+它不排斥其他记忆系统，而是成为个人认知的权威层（Cognitive Authority Layer），通过适配器与其他记忆库协作。
+
+它为 AI Agent 和其他智能应用提供一套独立、持久、可治理、可演化的认知能力，让它们能够积累经验、形成记忆、理解关系、检索过去、修正认知，并在时间中持续学习。
+
+> **3.0 Node：** 本目录是 [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 的独立 Node / Core。  
+> 根目录还包含 DSH 插件适配层；旧 0.2 插件归档在 `../legacy/dsh-plugin/`。  
+> 基线、GA 与完整文档见 [`docs/REPO_BASELINE.md`](docs/REPO_BASELINE.md)。
+
+> **关键边界：一个 Node 一个 Memory Bank；`mnemosyne-memory-bank` 不是第二套记忆库。**
+>
+> - `mnemosyne`：代码、Node、Core，负责运行和认知。
+> - `Mnemosyne Memory Bank`：Node 管理的**数据目录**（SQLite + runtime），不是代码仓。
+> - [`mnemosyne-memory-bank`](https://github.com/canyueY/mnemosyne-memory-bank)：Memory Bank 的**公开说明仓**，不含独立数据库、不启动服务、不保存个人数据。
+>
+> **项目隔离用 Bank，跨设备才用多 Node；不要让两套系统同时对同一份长期认知拥有写入权。**
+
+它希望解决的不是简单的对话历史保存问题，而是如何让 Agent 在长期运行中持续积累经验：将经历转化为证据，将证据组织成记忆，在新信息出现时更新已有认知，并通过行为结果和反馈不断改善未来的判断。
+
+Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务为核心原则。它可以作为独立记忆系统运行，也可以通过适配器接入 DeepSeek Harness（DSH）等 Agent 宿主。
+
+---
+
+## 目录
+
+- [1. 核心思想](#1-核心思想)
+- [2. 项目定位](#2-项目定位)
+- [3. 核心特点](#3-核心特点)
+- [4. 整体架构](#4-整体架构)
+- [5. 核心实现方案](#5-核心实现方案)
+- [6. 模块化设计](#6-模块化设计)
+- [7. 安装与运行](#7-安装与运行)
+- [8. DSH 集成](#8-dsh-集成)
+- [9. 开发与测试](#9-开发与测试)
+- [10. 设计边界](#10-设计边界)
+- [11. 未来方向](#11-未来方向)
+- [12. 项目理念](#12-项目理念)
+
+---
+
+## 1. 核心思想
+
+传统 Agent Memory 通常关注两个问题：
+
+- 保存了什么？
+- 需要时能否检索出来？
+
+Mnemosyne 希望进一步解决三个问题：
+
+- 新经验如何改变已有记忆？
+- 已有判断如何在反证出现时得到修正？
+- 一次经验如何改善 Agent 下一次的判断与行动？
+
+因此，Mnemosyne 将记忆视为一个持续演化的过程：
+
+Experience → Evidence → Memory → Retrieval → Action → Feedback → Evolution
+
+```text
+                新经历  新信息
+                       │
+                       ▼
+                 Observation
+                       │
+                       ▼
+                   Evidence
+                       │
+                       ▼
+             Candidate  Evaluation
+                       │
+                       ▼
+                 Memory Bank
+                       │
+                       ▼
+             Retrieval  Context
+                       │
+                       ▼
+                 Agent Action
+                       │
+                       ▼
+                Feedback  Outcome
+                       │
+                       ▼
+              Schema  Memory Evolution
+                       │
+                       └───────► 新一轮经验
 ```
-原始事件 → 短期缓冲 → 事件关联 → 情节记忆 → 行为模式 → 记忆筛选 → 长期记忆 → 用户模型
-```
 
-视频：`runStoryboard → 片段与时间戳 → 主题/实体 → 临时记忆 → 跨来源兴趣 → 长期记忆`
+记忆不是静态仓库，而是一个能够随着证据变化而持续调整的系统。
 
-优化焦点不是继续加层，而是：**值得记什么、如何组成经历、何种证据够晋升、冲突如何更新、如何改善行为、如何证明有效**。
+### 核心原则
 
----
-
-## 作用：它想成就怎样的 DSH
-
-若目标是让 DSH 逐渐朝着 **「像真人一样生活、记忆、成长、形成个性，并主动与你相处」** 发展，本服务提供的不是「多记一点摘要」，而是：
-
-> 从一个「接收指令 → 调模型 → 生成回答」的 AI，变成具有 **连续经历、稳定人格空间、动态兴趣、行为习惯与关系历史** 的数字角色。
-
-记忆架构本身只解决「经历如何被记录、关联、晋升、纠错」；情绪、目标、Live2D 表现等仍需独立模块。但它是后者能够长期一致的基础。
-
-优势分两层：**架构能提供什么**，以及 **如何逼近真人表现**。
+1. 证据优先： 记忆必须尽可能保留来源、时间和可信程度。
+2. 事实与推断分离： Agent 的推测不能自动成为用户事实。
+3. 变化优先于覆盖： 新信息不应无条件覆盖旧信息。
+4. 可追溯： 记忆的形成、更新和失效应当能够追踪。
+5. 模块独立： 每项能力具有清晰边界，避免整个系统绑定单一宿主。
+6. 渐进演化： 新能力应当可以独立测试、替换和逐步接入。
+7. 经验复利： 每一次有效经验都应有机会改善未来的判断。
 
 ---
 
-## 一、最重要的优势：连续的生活经历
+## 2. 项目定位
 
-### 1. 从「每次重新认识你」到「共同生活的连续性」
-
-普通 AI 常记得结论，却不记得事情如何发生。本方案把视频观看、日常对话、游戏体验、用户反馈等写成 **观察（observation）**，再沉淀为 **情节记忆（episode）**。
-
-例如：不只知道你喜欢某个游戏，还能记得何时聊过、当时反应、后来有没有续谈。
-
-**拟人化价值**：对话建立在共同经历上，而不只是机械调用资料卡。
-
-### 2. 从「知识库」到「逐渐形成自己的兴趣」
-
-短期观察 → 事件关联 → 兴趣候选 → 长期晋升，使兴趣随 **反复接触、主动探索、明确反馈** 调整，而不是开发者写死，也不是单次聊天定终身。
-
-**拟人化价值**：兴趣可以随经历缓慢变化，且每次变化最好留有依据。
-
-### 3. 从「知道事实」到「理解来龙去脉」
-
-保留事件、时间、实体关联与原始证据，才能区分：发生了什么、当时上下文、与过去哪些经历有关、后续是否改写了理解。
-
-**拟人化价值**：能回顾、理解变化、修正误解，而不是每次从孤立事实重推。
-
-### 4. 从「被动回答」到「基于经历主动发起」
-
-当话题贴近近期经历、未完成事件或长期兴趣时，上层策略可以决定是否主动提起（问项目进展、续谈某部作品等）。
-
-**拟人化价值**：交流不再完全依赖用户提问，而呈现持续关注与话题延续。
-
-共同点：**记忆不是仓库，而是后续理解与行为的依据。**
-
----
-
-## 二、相对普通桌宠 AI 的能力对照
-
-| 能力维度 | 普通 AI 桌宠常见做法 | 本方案方向 |
-| --- | --- | --- |
-| 记忆 | 聊天摘要 / 用户偏好 | 经历、证据、关联与后续变化 |
-| 个性 | 固定人设提示词 | 基础人格稳定，兴趣与习惯可演化 |
-| 兴趣 | 当前对话临时判断 | 长期行为、重复接触、主动参与综合判断 |
-| 情绪表现 | 按当前消息生成 | 结合近期事件、持续状态、历史互动（需状态模块） |
-| 主动性 | 定时 / 随机触发 | 按记忆、兴趣、未完成事件与环境决策（需决策模块） |
-| 学习 | 每轮重推，偶更摘要 | 候选 → 验证 → 巩固 → 修正 → 遗忘闭环 |
-| 自我一致性 | 主要靠提示词 | 人格边界 + 习惯 + 历史经历共同约束 |
-
-**强调**：记忆服务为这些能力提供底座，**不会自动生成**完整情绪、人格或自主意识；那些仍需独立的状态模型、决策与行为系统。
-
----
-
-## 三、最值得投入的三个技术优势
-
-### 1. 记忆与行为形成闭环
-
-```
-感知与观察          认知与记忆              状态与决策              行为与反馈
-聊天 / 视频 / 游戏   事件关联 · 兴趣判断      情绪 · 目标 · 关系       主动聊 · 探索 · 习惯调整
-桌面 / 用户行为  →  情节 · 长期知识     →   注意力 · 行为选择  →  结果再变观察 ──┘
-```
-
-比「更聪明的记忆库」更重要的是：行为结果重新成为观察，影响后续记忆与决策。
-
-例：常主动聊某主题且你积极回应 → 提高该主题被提起的优先级；多次冷淡 → 降低。  
-同时 **分开记录**：角色内部兴趣、用户兴趣、双方互动反馈——勿把用户回应直接等同于角色喜好。
-
-### 2. 人格稳定但不僵化
-
-| 层次 | 内容 | 更新节奏 |
-| --- | --- | --- |
-| **基础人格层** | 性格倾向、表达风格、价值偏好、角色边界 | 相对稳定，不因一两轮对话改写 |
-| **经验塑造层** | 兴趣、熟悉度、行为习惯、话题态度 | 随经历缓慢更新，保留变化依据 |
-| **动态状态层** | 当前情绪、注意力、疲劳模拟、近期关注 | 短期波动，可随时间/事件恢复 |
-
-避免：人格固化（只会换说法重复人设）、人格漂移（一段对话突然改长期立场）。  
-这是面向工程的分层，受心理学启发，**不等于**完整复现人类心理。
-
-### 3. 可追溯的成长历史
-
-每次兴趣/长期判断更新都应能说明依据，例如：
-
-- 10/01 首次接触某游戏 → 10/05 多次相关视频 → 10/08 主动讨论机制  
-- 10/12 候选「可能感兴趣」→ 10/20 证据加分提高置信度 → 11/03 信号变化，降低主动推荐
-
-好处：
-
-1. **纠错**：用户纠正后能定位受影响记忆，而不只覆盖摘要  
-2. **解释**：能说明「为什么认为这件事重要」  
-3. **回滚**：错误推断 / 错误长期记忆可撤销  
-4. **评估**：哪些观察信号真正改善了后续行为  
-
-长期桌宠若无来源、版本与修正机制，错误记忆会持续污染推理。
-
----
-
-## 四、单靠记忆还缺什么（真人化补齐清单）
-
-| 模块 | 作用 |
+| 属性 | 说明 |
 | --- | --- |
-| **情绪动力** | 短期情绪、触发、变化速度与恢复；影响表达与注意力，而非提示词里写「表现开心」 |
-| **目标与动机** | 短/长期目标、好奇心、待解决问题、行动优先级；避免主动性退化为随机找话题 |
-| **时间与日常** | 时间流逝、活动阶段、事件间隔、任务进度；无对话时仍维持合理状态 |
-| **社交与关系** | 共同经历、沟通偏好、承诺、冲突、反馈与边界；勿把回应一律当成情感认同 |
-| **感知与动作** | 视频/桌面感知与 Live2D 表情、口型、动作打通，让内在状态外显 |
+| 项目名称 | Mnemosyne |
+| 项目定位 | Evolving Memory Infrastructure |
+| 项目类型 | AI Agent 记忆基础设施 |
+| 核心目标 | 长期记忆、证据管理、认知演化与反馈学习 |
+| 核心实现 | Node Host + Python FastAPI Service |
+| 接入方向 | DSH、独立 Agent、外部应用 |
+| 设计原则 | Modular、Independent、Traceable、Composable |
 
----
+Mnemosyne 不试图成为一个完整的 Agent 框架。
 
-## 五、推进顺序：先「持续变化」，再「像真人说话」
+它不负责替代模型推理、工具执行、任务编排或 Agent 人格，而是为这些系统提供可复用的记忆能力。
 
-拟人化五阶段仍适用（经历记忆 → 内部状态 → 行为闭环 → 多模态 → 长期验证）。工程排期按路线图 **P0–P3**：
+Agent 决定如何行动，Mnemosyne 负责让行动能够建立在可靠的历史经验之上。
 
-| 阶段 | 内容 | 文档 |
+![Mnemosyne 项目定位与整体架构](docs/assets/architecture/architecture-panorama.png)
+
+*项目定位、五层系统架构、Node 与 Memory Bank、记忆认知生命周期、多 Agent 接入与跨 Node 互操作总览。*
+
+
+### 2.1 官方定义：个人认知基础设施
+
+> **Mnemosyne 是个人认知基础设施（Personal Cognitive Infrastructure）。**
+>
+> 它为 AI Agent 和其他智能应用提供一套独立、持久、可治理、可演化的认知能力，让它们能够积累经验、形成记忆、理解关系、检索过去、修正认知，并在时间中持续学习。
+>
+> **Mnemosyne is an open, independent Personal Cognitive Infrastructure for AI Agents.**
+
+一句话定位：
+
+> **让记忆成为认知的基础，让认知能够持续演化。**
+
+记忆是 Mnemosyne 的基础能力，**认知**才是它要承载的整体能力。
+
+### 2.2 它不是什么
+
+| 定义 | 是否属于 | 原因 |
 | --- | --- | --- |
-| **P0** | Observation / Episode / Candidate / Memory / Evidence 统一；晋升·失效·纠正规则；决策日志与算法版本 | [STATE_MACHINE](../docs/MNEMOSYNE_STATE_MACHINE.md) |
-| **P1** | Graphiti 时间图谱 + 混合检索；SQLite 作证据与任务底座；REST/MCP 与失败恢复加固 | [ROADMAP](../docs/MNEMOSYNE_ROADMAP.md) |
-| **P2** | `runStoryboard`；观看行为与内容分模；临时记忆；跨来源兴趣；`UNKNOWN→…→CONFIRMED`；反向证据 | 同上 §C |
-| **P3** | 空闲巩固；策略 A/B；固定测试集验证准确性 / 纠错 / 主动收益 | 同上 §F |
+| 算法插件 | 不完全是 | 算法只是内部实现，可以替换和扩展 |
+| 记忆库（Memory Store） | 是，但不完整 | 需要持久化、组织和管理记忆 |
+| 向量数据库 | 不是 | 向量检索只是检索手段之一 |
+| RAG 系统 | 不只是 | RAG 主要解决知识检索与上下文注入 |
+| Agent 插件 | 不完全是 | 插件只是接入某个宿主的方式 |
+| 记忆中间件 | 部分是 | 提供统一接口，但不应只是数据转发层 |
+| 认知引擎（Cognitive Engine） | 是核心组成 | 负责记忆形成、检索、关联、推理和演化 |
+| 个人认知基础设施 | 最准确的整体定义 | 同时涵盖数据、认知能力、治理、运行和生态接入 |
 
-**优先打通**：情节记忆 + **证据分层的**动态兴趣 + 行为反馈闭环。  
-**借鉴但不替代自研：** Graphiti（图谱/检索）、Cognee（improve/forget 流程）、Mem0（轻量基线与评测）、Letta（空闲整理思想）。阈值与权重必须实验校准。
+Mnemosyne 由四部分组成，而不是四个独立产品：
 
-兴趣证据勿混成单一分数，至少区分：被动暴露 / 注意力 / 主动参与 / 明确反馈。
+1. **记忆系统**：保存什么，以及如何组织信息。
+2. **认知引擎**：如何从信息中形成、检索和修正认知。
+3. **运行与存储**：如何让系统独立运行、可靠持久化。
+4. **治理与互操作**：谁能访问、访问什么，以及如何与外部系统协作。
 
-### 最终判断
+### 2.3 与外部记忆系统的关系
 
-最大优势：提供 **从经历形成认知 → 认知影响行为 → 行为反馈继续成长** 的基础。  
-最值得追求的不是生成「我今天很开心」的句子，而是根据此前发生的事表现出合理状态变化，并在未来行为中持续体现。  
+> **会有重叠，但不必然冲突。真正的风险不是 Mnemosyne 和其他记忆库同时存在，而是它们同时对同一份记忆拥有写入权、修改权和最终解释权。**
 
-这提高的是 **功能层面的真人感与长期一致性**，不能据此声称真实主观体验或意识。
+Mnemosyne 不排斥其他记忆系统，而是成为**个人认知的权威层（Cognitive Authority Layer）**，通过适配器与其他记忆库协作。
 
----
+| 关系 | 是否冲突 | 说明 |
+| --- | --- | --- |
+| Mnemosyne 与 Agent 自带记忆并存 | 不冲突 | Agent 可以保留自己的会话记忆和运行状态 |
+| Mnemosyne 与其他记忆库互相读取 | 不冲突 | 通过授权和适配器交换信息 |
+| Mnemosyne 与其他记忆库同时管理同一份长期个人认知 | 有冲突风险 | 可能产生重复记忆、版本不一致、事实矛盾和权限混乱 |
 
-## 仓库结构（以及为什么这样拆）
+不同系统保存的内容并不相同：
 
-```
-services/mnemosyne/
-├── src/mnemosyne/
-│   ├── main.py / bootstrap.py / cli.py   # 进程入口 · 组装 · 备份/恢复/迁移
-│   ├── domain/                           # 观察 / 记忆 / 上下文等契约模型
-│   ├── core/service.py                   # 唯一业务核心 MemoryService
-│   ├── storage/                          # SQLite · FTS5 · 路径布局
-│   ├── events/ + jobs/                   # 事件总线 · Outbox/Inbox/Tasks 调度
-│   ├── retrieval/                        # 检索与 contexts/build（快通道）
-│   ├── cognition/                        # 归纳 / 晋升等慢通道（可换 LLM）
-│   ├── api/                              # FastAPI REST
-│   └── mcp/                              # stdio MCP（与 REST 共用 Service）
-├── tests/unit · tests/recovery
-└── README.md                             # 本文件（愿景 + 工程）
-```
+| 系统 | 主要职责 | 建议关系 |
+| --- | --- | --- |
+| Agent 会话记忆 | 当前对话、短期上下文 | 保留在 Agent |
+| Agent 工作记忆 | 当前任务状态、中间结果 | 保留在 Runtime |
+| 项目知识库 | 项目文档、代码、技术规范 | 保留在原知识源 |
+| 向量数据库 | Embedding 和相似度索引 | 可作为 Mnemosyne 的检索 Provider |
+| Graphiti 等时序图记忆系统 | 实体关系和时间变化 | 可作为算法或存储能力接入 |
+| Mem0、LangMem 等记忆方案 | 记忆提取、更新和检索 | 可作为适配对象或算法参考 |
+| Mnemosyne | 个人长期认知、证据、关系、经验与治理 | 个人认知权威层 |
 
-宿主侧：
+> **不是所有 Agent 能访问的数据，都应该被复制成 Mnemosyne 的长期记忆。**
 
-```
-_dsh_plugins/dsh-mnemosyne/   # Node：拉起子进程 + 注册 DSH tools
-Murasame/mnemosyne_bridge.py  # 桌宠 HTTP 客户端 / auto_start
-```
+例如，项目文档本身可以继续保存在 GitHub；Mnemosyne 只记录用户参与该项目的经历、重要决策、个人偏好，以及指向原始文档的引用。Agent 需要项目最新状态时，仍然应该回到原始文档查询。
 
-| 选择 | 理由 |
+### 2.4 权威模型：冲突由谁解释
+
+Mnemosyne 需要明确的 **Authority Model**，不能因为自己是中心系统就直接覆盖外部数据。
+
+| 信息 | 来源 | 状态 |
+| --- | --- | --- |
+| 使用 Python | 2025 年的用户表达 | 历史事实 |
+| 使用 TypeScript | 2026 年的用户表达 | 当前有效事实 |
+| 主要使用 Python | 另一个 Agent 的记忆 | 可能过期，待核验 |
+
+Mnemosyne 应当负责：
+
+1. 保存原始来源和时间。
+2. 判断新旧信息之间是否存在冲突。
+3. 建立历史版本和当前有效状态。
+4. 记录证据和修正过程。
+5. 根据授权向其他系统发布更新。
+
+> **Mnemosyne 的权威性来自证据、用户授权和明确的治理规则，而不是来自它拥有更大的数据库。**
+
+### 2.5 四种接入模式
+
+| 模式 | 说明 | 适用场景 |
+| --- | --- | --- |
+| **A. 独立记忆**（推荐默认） | 其他记忆库独立运行，Mnemosyne 不接管 | 会话记忆、任务状态、项目缓存 |
+| **B. 只读接入** | Mnemosyne 可以检索外部记忆，但不修改其内容 | 已有 Agent Memory、企业知识库 |
+| **C. 双向同步** | 双方按字段、范围、版本和授权规则同步 | 用户明确授权的长期记忆迁移或协作 |
+| **D. Mnemosyne 托管认知** | 外部 Agent 把长期个人认知交给 Mnemosyne，自身只保留工作状态和缓存 | 以 Mnemosyne 为主要记忆基础设施的 Agent |
+
+这四种模式不能混为一谈。尤其是**双向同步 ≠ 双方可以无条件覆盖对方的数据**。
+
+### 2.6 Memory Interoperability Layer
+
+建议在 Mnemosyne 中增加一个明确的逻辑层：
+
+> **Memory Interoperability Layer（记忆互操作层）**
+
+它不负责记忆本身的认知判断，而负责与外部记忆系统建立可控连接。
+
+| 模块 | 职责 |
 | --- | --- |
-| **独立子进程** | 记忆崩溃不拖垮对话；可单独升级、备份、限权 |
-| **一个 `MemoryService`，REST = MCP** | 协议稳定、算法可换；避免两套语义漂移 |
-| **观察 ≠ 记忆** | 原始经历可追溯；晋升后的断言可纠错、可回滚 |
-| **快 / 慢双通道** | 对话路径不堵在归纳上；慢任务用 Outbox/Tasks 可恢复 |
-| **SQLite + FTS5** | 本机单用户够用、可离线、可整库备份；检索可降级 LIKE |
-| **证据与版本** | 支撑「可解释成长」与兴趣置信度演变 |
-| **插件只做 Host Adapter** | DSH 工具层薄；认知逻辑留在 Python 服务，便于与桌宠 bridge 共用 |
+| Memory Provider Registry | 登记外部记忆系统 |
+| Memory Adapter | 转换外部数据结构 |
+| Identity Mapping | 映射用户、Agent、Node 身份 |
+| Scope Mapping | 映射 Memory Bank 和外部命名空间 |
+| Authority Resolver | 判断数据的权威来源 |
+| Conflict Resolver | 检测和处理记忆冲突 |
+| Sync Coordinator | 增量同步、版本管理和重试 |
+| Provenance Tracker | 保存来源、证据和变更历史 |
+| Permission Gateway | 控制读取、写入、同步和撤销 |
+
+```text
+Agent A Memory
+Agent B Memory
+External Knowledge
+Other Memory Store
+        │
+        ▼
+Memory Interoperability Layer
+Adapter · Identity · Permission · Provenance · Conflict · Sync
+        │
+        ▼
+Mnemosyne Cognitive Core
+Evidence · Memory · Relationship · Recall · Learning · Governance
+```
+
+**外部系统通过受控接口协作，不直接访问核心数据库。**
+
+### 2.7 必须坚持的五条原则
+
+1. **不强制替换**：外部记忆库可以继续存在。
+2. **不默认复制**：外部信息先作为外部数据或 Observation，不自动成为个人事实。
+3. **不允许双重权威**：同一认知对象必须明确权威来源和写入规则。
+4. **不丢失来源**：同步后的记忆仍然能够追溯到原始系统和证据。
+5. **不默认共享**：一个 Agent 的私人记忆不能因为接入 Mnemosyne 就自动对其他 Agent 可见。
+
+### 2.8 最终定位
+
+> **Mnemosyne 是个人认知基础设施，也是个人长期认知的权威管理层。**  
+> 它不要求取代所有外部记忆系统，而是通过开放协议连接、整合和治理它们，使个人认知能够跨 Agent、跨应用、跨时间持续积累与演化。
+
+**Mnemosyne 不是要成为世界上唯一的记忆库，而是要成为用户自己的认知中心。**
+
+其他系统可以有自己的记忆，但用户的长期个人认知由谁负责、依据什么更新、如何纠错、谁可以访问，应当有清晰且可迁移的规则。
+
+> 记忆互操作层与权威模型纳入 Mnemosyne 2.0 架构设计；跨 Node 的联邦同步继续放在后续阶段，不因此扩大 2.0 GA 范围。
+
+### 2.9 层级关系
+
+| 名称 | 定义 | 与 Mnemosyne 的关系 |
+| --- | --- | --- |
+| Mnemosyne | 个人认知基础设施 | 整体系统 |
+| Mnemosyne Node | 独立运行的认知节点 | 部署和运行实体 |
+| Mnemosyne Core | 认知与记忆核心能力 | 核心引擎 |
+| Memory Bank | 具有独立边界的记忆空间 | 记忆组织与隔离机制 |
+| Cognitive Algorithm | 检索、归纳、关联、学习等算法 | 可替换的内部实现 |
+| Adapter / Plugin | 外部系统接入适配器 | 扩展和集成方式 |
+| SDK / API / MCP | 外部调用接口 | 互操作入口 |
+
+> **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**  
+> Mnemosyne 是整套基础设施；Node 是一次独立运行实例；Memory Bank 是 Node 内部的逻辑记忆空间。
+
+### 2.10 运行时边界：一个 Node，一个 Memory Bank
+
+| 层 | 实体 | 是否独立存储 | 说明 |
+| --- | --- | --- | --- |
+| 代码 | `canyueY/dsh-mnemosyne` | 否 | Node / Core / API / SDK |
+| 运行 | Mnemosyne Node | 是，一个 Node 一个数据根 | 进程、配置、事务、任务 |
+| 数据 | Mnemosyne Memory Bank | 是，Node 的物理数据目录 | SQLite、runtime、logs、components |
+| 逻辑 | Personal / Projects / Knowledge / Shared / Public / System | 否，同一数据库内的 Bank | 权限、检索范围、隔离 |
+| 文档 | `canyueY/mnemosyne-memory-bank` | 否 | 架构与数据契约说明，不是运行时 |
+
+**同一 Node 内：**
+
+- 不同项目用不同 Bank，不复制数据库；
+- 默认检索只查 `personal`；
+- `shared` / `public` 不会被自动带进 `personal`；
+- 需要显式指定 `banks` 才能跨空间检索。
+
+**不同 Node 之间：**
+
+- 不共享同一个 SQLite；
+- 通过 API / SDK / MCP / 导入导出交换；
+- 同一认知必须有明确权威来源，不能双写；
+- 跨 Node 联邦按规划放在 2.1+。
+
+推荐形态：
+
+```text
+一个用户
+  └─ 一个 Mnemosyne Node
+       └─ 一个 Memory Bank
+            ├─ personal
+            ├─ projects
+            └─ knowledge
+```
+
+> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**  
+> 两者逻辑上重合、可以关联，但不应该各自维护一套数据库。
+
 
 ---
 
-## 架构速览（V1.0）
+## 3. 核心特点
 
-| 层 | 说明 |
+### 3.1 基础设施优先
+
+Mnemosyne 不将自身限制为某个 Agent 框架的附属插件。
+
+它以独立服务为核心，将记忆处理、存储、检索和演化能力封装为可复用的基础设施。
+
+这意味着：
+
+- 不要求 Agent 与记忆系统使用同一种语言。
+- 不要求所有调用者都运行在同一个进程中。
+- 不要求记忆能力只能通过某个插件入口访问。
+- 不要求未来新增的 Agent 框架重新实现一套记忆系统。
+
+DSH 是重要的集成宿主，但不是 Mnemosyne 唯一的使用方式。
+
+### 3.2 模块化与独立运行
+
+每项能力尽量拥有明确的输入、输出和职责。
+
+例如：
+
+- Schema Evolution 可以独立处理图式演化。
+- Feedback Learning 可以独立评估反馈信号。
+- Semantic Retrieval 可以独立提供语义相关性信号。
+- Memory Bank 负责记忆数据的组织和管理。
+
+模块之间通过明确的数据契约协作，而不是依赖彼此的内部实现。
+
+### 3.3 记忆具有生命周期
+
+一条信息不应该只有内容，还应该有来源、状态和变化过程。
+
+Mnemosyne 将记忆相关过程组织为：
+
+Observation → Evidence → Candidate → Memory → Review → Evolution
+
+让系统能够区分：
+
+- 新出现的信息。
+- 已经验证的事实。
+- 尚待确认的候选判断。
+- 与旧记忆存在冲突的信息。
+- 已经失效或被新状态取代的信息。
+
+### 3.4 认知演化
+
+基于图式理论，Mnemosyne 将新经验与既有认知之间的关系分为：
+
+| 类型 | 含义 |
 | --- | --- |
-| DSH 插件 | 子进程管理 + tools |
-| REST | `127.0.0.1` 随机端口，`/api/v1/*`，Bearer Token |
-| MCP | stdio，与 REST 共用 `MemoryService` |
-| 存储 | SQLite + FTS5 + Outbox/Inbox/Tasks |
-| 认知 | 快：工作记忆/检索；慢：归纳/晋升/反馈 |
+| Assimilation | 同化：新经验可以纳入既有图式 |
+| Accommodation | 顺应：调整既有图式的内容或适用范围 |
+| Conflict | 冲突：反证足以使图式进入争议状态 |
 
-### 五条底线
+当前实现由 `cognition/schema_evolution.py` 提供。
 
-1. 一个业务核心，两个对外入口（MCP = REST）。  
-2. 观察 ≠ 记忆，推断 ≠ 事实。  
-3. 事件必须能恢复（Outbox/Tasks 落库）。  
-4. 检索可降级（FTS 失败回退 LIKE）。  
-5. 先稳定协议，再扩展算法。
+其中，默认 `confirm=False`，先预览演化结果，确认后才写入版本，避免新证据静默覆盖已有认知。
+
+### 3.5 反馈驱动的学习
+
+Mnemosyne 不把所有反馈混为一谈。
+
+当前将反馈区分为：
+
+| 信号 | 含义 | 权重 |
+| --- | --- | ---: |
+| `user_explicit` | 用户明确表达的评价或纠正 | 0.10 |
+| `outcome` | 实际行为结果 | 0.06 |
+| `self_eval` | Agent 自我评估 | 0.02 | 
+
+三种信号具有不同的证据意义。
+
+尤其是 Agent 自评不能直接改变用户事实；负向信号可以要求后续 Review 或 Change Plan 介入。
+
+对应实现：`cognition/feedback_learning.py`。
+
+### 3.6 可选语义能力
+
+语义检索是可插拔能力，不是记忆系统唯一的判断依据。
+
+当前实现：
+
+- 默认使用轻量级 `hashed_embedding()`。
+- 允许注入真正的 `EmbeddingProvider`。
+- 通过 `SemanticScorer.blend()` 融合词法与语义信号。
+- 语义加分权重上限为 0.6。
+- 不替代原有 FTS、Planner 和证据、时间、情境评分。
+
+对应实现：`retrieval/semantic.py`。
+
+默认哈希表示是轻量级相似性特征，并不等价于完整的自然语言语义理解。
 
 ---
 
-## 快速启动
+## 4. 整体架构
+
+![Mnemosyne 个人认知基础设施架构图](docs/assets/architecture/architecture-overview.png)
+
+*外部接入 → Mnemosyne Node / Core → Memory Bank 数据层；不同 Node 之间通过授权互操作，不共享数据库。*
+
+Mnemosyne 采用 Host 与 Service 分离的架构思路。
+
+```text
+                 Agent  Application
+                         │
+                         ▼
+                  Integration Layer
+                   DSH  REST  MCP
+                         │
+                         ▼
+                    Node Host
+                         │
+                Service Integration
+                         │
+                         ▼
+                 Python Memory Service
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+       Cognition      Retrieval       Memory
+          │              │              │
+          ▼              ▼              ▼
+    Schema Evolution  Semantic       Memory Bank
+    Feedback Learning  Scoring       Evidence
+    Change Planning    Ranking        History
+                         │
+                         ▼
+                 Persistent Storage
+```
+
+### Node Host
+
+负责宿主集成和服务调用。
+
+主要目标：
+
+- 提供统一的应用接入入口。
+- 管理宿主侧生命周期。
+- 连接独立记忆服务。
+- 将底层能力适配为 Agent 可使用的接口。
+
+### Python Memory Service
+
+负责记忆核心处理能力。
+
+主要目标：
+
+- 记忆数据处理。
+- 证据与状态管理。
+- 认知演化。
+- 反馈学习。
+- 检索与评分。
+- 与存储层协作。
+
+### Memory Bank
+
+负责长期记忆的组织与持久化。
+
+它不应该依赖某一个 Agent 的运行状态，也不应该将所有数据直接绑定到单次对话上下文。
+
+---
+
+## 5. 核心实现方案
+
+### 5.1 Observation → Evidence → Candidate
+
+系统首先接收观察信息，再将其组织为可评估的证据。
+
+这一步重点是保留来源和上下文，而不是急于生成结论。
+
+### 5.2 Memory Evolution
+
+当新信息进入系统时，与现有记忆进行匹配。
+
+根据证据关系决定：
+
+- 补充旧记忆。
+- 调整旧记忆的适用范围。
+- 创建新版本。
+- 标记冲突。
+- 提交人工或后续流程审查。
+
+### 5.3 Feedback Learning
+
+行为结果和用户反馈分别进入学习过程。
+
+系统需要区分：
+
+- 用户明确认可。
+- 用户明确纠正。
+- 实际行动成功。
+- 实际行动失败。
+- Agent 自我判断。
+
+这样可以避免把一次成功执行错误地解释为用户认同。
+
+### 5.4 Semantic Retrieval
+
+语义信号参与检索排序，但不能压过证据可靠性、时间有效性和情境匹配。
+
+未来可以根据实际需求注入不同的 Embedding Provider，而无需重写整个检索系统。
+
+### 5.5 Experience Loop
+
+最终形成：
+
+```text
+Experience
+    ↓
+Evidence
+    ↓
+Memory
+    ↓
+Recall
+    ↓
+Action
+    ↓
+Feedback
+    ↓
+Evolution
+    └───────────────↺
+```
+
+这条闭环是 Mnemosyne 的长期核心。
+
+---
+
+## 6. 模块化设计
+
+Mnemosyne 希望将能力设计成可独立维护的模块。
+
+| 模块 | 职责 |
+| --- | --- |
+| Observation | 接收原始观察 |
+| Evidence | 管理证据及其来源 |
+| Memory | 记忆生命周期管理 |
+| Schema Evolution | 图式同化、顺应与冲突处理 |
+| Feedback Learning | 用户反馈、结果和自评信号 |
+| Retrieval | 记忆召回与排序 |
+| Semantic | 语义相关性信号 |
+| Memory Bank | 记忆存储与命名空间组织 |
+| Integration | DSH 和其他宿主的适配 |
+
+模块化的目标不是拆出尽可能多的文件，而是让模块具备独立演进的能力。
+
+未来可以替换某个模块，而不必重写整个系统。
+
+---
+
+## 7. 安装与运行
+
+### 环境要求
+
+- Node.js 20+
+- Python 运行环境
+- Git
+- 对应 Python 服务所需的依赖
+
+### 获取项目
 
 ```bash
-cd services/mnemosyne
+git clone https://github.com/canyueY/dsh-mnemosyne.git
+cd dsh-mnemosyne
+```
+
+### 安装 Node 侧依赖
+
+```bash
+npm install
+```
+
+### Python 服务环境
+
+建议使用独立虚拟环境：
+
+```bash
+python -m venv .venv
+```
+
+Windows：
+
+```powershell
+.venv\Scripts\activate
+```
+
+Linux / macOS：
+
+```bash
+source .venv/bin/activate
+```
+
+```bash
+cd service
 pip install -e ".[dev]"
-set DSH_MEMORY_TOKEN=dev-token
-set DSH_MEMORY_DATA_DIR=%TEMP%\dsh-cm-dev
-python -m mnemosyne.main --host 127.0.0.1 --port 8765 --token dev-token --data-dir %TEMP%\dsh-cm-dev
 ```
+
+### 启动方式
+
+Mnemosyne 的运行由 Node Host 与 Python Service 两部分组成。
+
+实际启动脚本、服务地址、环境变量和配置文件应以当前版本仓库中的配置为准。
+
+不要将开发环境中的默认路径和端口直接当作生产环境配置。
+
+ 注意：以上为环境准备流程。完整的一键启动命令应在仓库统一启动脚本和服务配置稳定后补入。
+
+---
+
+## 8. DSH 集成
+
+Mnemosyne 提供独立的 DSH 插件接入层。
+
+插件仓库：
+
+https://github.com/canyueY/dsh-mnemosyne
+
+安装：
 
 ```bash
-curl -H "Authorization: Bearer dev-token" http://127.0.0.1:8765/api/v1/health
+dsh plugin --profile web add github:canyueY/dsh-mnemosyne#main
 ```
 
-运维：`python -m mnemosyne.cli backup|restore|migrate-amem|health`
+目前可通过插件入口使用记忆能力，例如：
 
-数据目录（Windows）：`%LOCALAPPDATA%/DSH/mnemosyne/` → `runtime/` · `data/memory.db` · `logs/` · `cache/`
+- `memory_search`
+- `memory_context`
+- `memory_observe`
+- `memory_feedback`
 
-```bash
-pytest -q
+插件负责将 DSH 的调用适配到 Mnemosyne 的记忆能力，不应成为记忆核心逻辑唯一的实现位置。
+
+核心实现与宿主插件保持分离，有利于未来接入其他 Agent 框架。
+
+---
+
+## 9. 开发与测试
+
+Mnemosyne 的开发强调模块级测试与完整回归。
+
+当前经验闭环新增测试：
+
+```text
+tests/unit/test_experience_loop.py
 ```
 
-## 许可
+覆盖：
 
-AGPL-3.0-or-later
+- 图式演化。
+- 反馈学习。
+- 语义信号。
+- 相关边界行为。
+
+经验闭环提交：
+
+```text
+6ce80db
+feat: add experience loop
+```
+
+当时独立仓全量测试结果：
+
+```text
+119 passed
+```
+
+测试数量和结果会随项目持续变化，请以当前 CI 和最新提交为准。
+
+开发原则：
+
+1. 新模块必须具有清晰的输入和输出。
+2. 重要状态变化必须有测试。
+3. 不允许自评直接改变用户事实。
+4. 默认采用保守写入策略。
+5. 新能力不能破坏既有记忆契约。
+6. 接口变更需要考虑向后兼容。
+
+---
+
+## 10. 设计边界
+
+Mnemosyne 当前不试图实现所有心理学理论。
+
+暂不进入主干的方向包括：
+
+- 社会学习四过程的完整模型。
+- 道德发展三水平六阶段。
+- 完整的心理空间建模。
+- 复杂的自主意识模拟。
+
+这些理论可以成为未来的研究参考，但不应为了理论完整而牺牲工程可维护性。
+
+同时，Mnemosyne 本身不代表 Agent 拥有意识或真实情感。
+
+它提供的是可追溯的经验组织、认知更新和反馈机制。
+
+---
+
+## 11. 未来方向
+
+### P0 — Core Infrastructure Stabilization
+
+- 统一核心数据契约。
+- 完善服务生命周期。
+- 增强事务、幂等与错误恢复。
+- 完善模块独立测试。
+- 明确服务版本和接口兼容策略。
+
+### P1 — Experience Loop Integration
+
+- 将图式演化接入真实记忆生命周期。
+- 将反馈学习与 Recall、Review、Change Plan 联动。
+- 验证经验是否实际改善后续检索和行为。
+- 建立端到端经验闭环测试。
+
+### P2 — Universal API  SDK
+
+- 统一 REST API。
+- SDK。
+- MCP Adapter。
+- 其他 Agent 框架适配器。
+
+这些属于后续接口建设，不应与当前已完成的服务层能力混淆。
+
+### P3 — Advanced Retrieval
+
+- 更成熟的 Embedding Provider。
+- 混合检索优化。
+- 多信号校准。
+- 语义关联与跨项目检索。
+
+### P4 — Memory Federation
+
+- 多实例协作。
+- 跨节点同步。
+- 记忆授权与共享。
+- 可验证的迁移与恢复。
+
+---
+
+## 12. 项目理念
+
+Mnemosyne 希望探索一种新的 Agent 记忆基础设施：
+
+不是让 Agent 永远保存更多内容，而是让它能够在合适的时间找到正确的证据，理解经验的变化，并在新证据出现时修正过去的判断。
+
+记忆的价值不在于存储了多少，而在于它能否让未来变得更好。
+
+项目：
+
+- 核心实现：https://github.com/canyueY/dsh-mnemosyne
+- DSH 插件：https://github.com/canyueY/dsh-mnemosyne
+

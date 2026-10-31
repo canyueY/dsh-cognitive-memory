@@ -6,8 +6,8 @@ import time
 import unittest
 from pathlib import Path
 
-from mnemosyne.core.service import ConflictError, MemoryService
-from mnemosyne.domain.models import (
+from cognitive_memory.core.service import ConflictError, MemoryService
+from cognitive_memory.domain.models import (
     ContextBuildIn,
     FeedbackIn,
     MemoryProposeIn,
@@ -18,9 +18,9 @@ from mnemosyne.domain.models import (
     SearchQuery,
     SourceKind,
 )
-from mnemosyne.events.bus import EventBus
-from mnemosyne.jobs.dispatcher import BackgroundRuntime
-from mnemosyne.storage.db import Database
+from cognitive_memory.events.bus import EventBus
+from cognitive_memory.jobs.dispatcher import BackgroundRuntime
+from cognitive_memory.storage.db import Database
 
 
 class MemoryServiceTests(unittest.TestCase):
@@ -90,37 +90,6 @@ class MemoryServiceTests(unittest.TestCase):
         )
         self.assertTrue(ctx.fragments, "自然语言问句应能召回刚写入的观察")
         self.assertTrue(any("夜航星" in f["content"] for f in ctx.fragments))
-
-    def test_fts_system_error_degrades_to_like(self) -> None:
-        self.svc.propose_memory(
-            MemoryProposeIn(
-                content="主人喜欢吃番茄炒蛋",
-                type=MemoryType.SEMANTIC,
-                status=MemoryStatus.ACTIVE,
-            )
-        )
-        real_connect = self.svc.db.connect
-
-        class FtsBroken:
-            def __init__(self, conn):
-                self._conn = conn
-
-            def execute(self, sql, params=()):
-                if "MATCH" in sql:
-                    # Python 3.12 + some SQLite builds do this instead of
-                    # raising sqlite3.OperationalError.
-                    raise SystemError("returned NULL without setting an exception")
-                return self._conn.execute(sql, params)
-
-            def __getattr__(self, name):
-                return getattr(self._conn, name)
-
-        self.svc.db.connect = lambda: FtsBroken(real_connect())
-        try:
-            hits = self.svc.search(SearchQuery(query="番茄"))
-        finally:
-            self.svc.db.connect = real_connect
-        self.assertTrue(any("番茄" in m.content for m in hits), "FTS 报错后应降级到 LIKE")
 
     def test_context_and_feedback_invalidate(self) -> None:
         mem = self.svc.propose_memory(

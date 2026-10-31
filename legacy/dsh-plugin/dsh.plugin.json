@@ -1,0 +1,9 @@
+{
+  "name": "dsh-mnemosyne",
+  "description": "DeepSeek Harness 演化记忆系统：证据、时间、情境、状态演化、情绪与纠错",
+  "version": "0.2.0",
+  "entry": {
+    "name": "dsh-mnemosyne",
+    "inject": ["tools"]
+  }
+}

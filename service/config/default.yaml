@@ -1,9 +1,9 @@
-# Mnemosyne Service — default config (override via env / CLI)
+# Cognitive Memory Service — default config (override via env / CLI)
 host: "127.0.0.1"
 port: 0  # 0 = OS 分配随机端口
 api_prefix: "/api/v1"
 access_token_env: "DSH_MEMORY_TOKEN"
-data_dir: ""  # 空则用 %LOCALAPPDATA%/DSH/mnemosyne
+data_dir: ""  # 空则用 %LOCALAPPDATA%/DSH/cognitive-memory
 log_level: "INFO"
 vector_index:
   enable: false
@@ -17,3 +17,9 @@ slow_path:
 dispatcher:
   batch_size: 32
   poll_interval_ms: 200
+# P1 时空感知：元数据规范化 + 检索只读降权（不另建库、不自动覆盖事实）
+spatiotemporal:
+  enable: true
+  schema_version: 1
+  demote_expired: true
+  demote_historical_space_in_current: true

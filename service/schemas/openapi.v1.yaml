@@ -1,8 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Mnemosyne API
-  version: "1.0.0"
-  description: 外置演化记忆服务 REST 契约（与 MCP 共用 MemoryService）
+  title: Mnemosyne Cognitive Memory API
+  version: "1.1.0"
+  description: |
+    Mnemosyne Node REST 契约（前缀 /api/v1；与 MCP 共用 MemoryService）。
+    人类可读规格：docs/MNEMOSYNE_API_SPEC.md
 servers:
   - url: http://127.0.0.1:{port}/api/v1
     variables:
@@ -77,6 +79,38 @@ paths:
       responses:
         "200":
           description: OK
+  /retrieve:
+    post:
+      summary: Mnemosyne 统一检索（Planner + 分层召回；status 含 NOT_NEEDED/FAILED）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /changes/plans:
+    post:
+      summary: 从 observation 生成 ChangePlan（默认 dry-run 持久化审计）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    get:
+      summary: 列出 ChangePlan
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /changes/plans/{id}/apply:
+    post:
+      summary: 显式 apply ChangePlan（需 confirm=true）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
   /tasks:
     post:
       summary: 创建后台任务
@@ -96,6 +130,223 @@ paths:
       responses:
         "200":
           description: OK
+  /relations:
+    post:
+      summary: P3 写入记忆关系边
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /memories/{id}/relations:
+    get:
+      summary: P3 列出记忆关系
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /changes/detect:
+    post:
+      summary: P2 变化检测（默认 dry_run）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /changes/candidates:
+    get:
+      summary: P2 列出变化候选（审计表）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 40 }
+        - name: applied
+          in: query
+          schema: { type: string, default: "false", description: "false|true|any" }
+        - name: types
+          in: query
+          schema: { type: string, description: "comma-separated change_type" }
+      responses:
+        "200":
+          description: OK
+  /reevaluate:
+    post:
+      summary: P4 重新评估过期/待复核记忆
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /patterns/scan:
+    post:
+      summary: P5 跨日/场景行为模式扫描
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /emotion/extract:
+    post:
+      summary: Mnemosyne 情绪提取（默认 shadow，不写正式 LT）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /emotion/candidates:
+    get:
+      summary: 列出情绪候选审计
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 40 }
+        - name: written
+          in: query
+          schema: { type: string, default: "false" }
+      responses:
+        "200":
+          description: OK
+  /emotion/patterns/scan:
+    post:
+      summary: Mnemosyne P4 情绪—行为模式扫描（默认不升格）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /identities:
+    get:
+      summary: 列出 Identity principals
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: 注册/更新 Identity principal
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /identities/{id}:
+    get:
+      summary: 获取 Identity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+  /evidence:
+    post:
+      summary: 附着证据（provenance）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /memories/{id}/evidence:
+    get:
+      summary: 列出记忆证据
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /banks:
+    get:
+      summary: 列出 Memory Banks
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /authority:
+    get:
+      summary: 当前 Adoption Authority 状态
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /authority/transition:
+    post:
+      summary: Authority 状态转移（dual_sync 须 allow_dual）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+        "409":
+          description: 非法转移
+  /contract:
+    get:
+      summary: Memory Service Contract 快照
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /authority/cutover/preview:
+    get:
+      summary: Cutover 预览
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /authority/cutover/execute:
+    post:
+      summary: Cutover 执行（须 confirm）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /agents/register:
+    post:
+      summary: 登记 Agent（≠ 授权）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /agents/act/search:
+    post:
+      summary: Agent 检索入口（须 agent_token）
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: grant 拒绝
+  /node:
+    get:
+      summary: Node 信息与鉴权约定
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /entities:
+    get:
+      summary: 列出 Entity（最小面）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: 写入 Entity
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /events/stream:
+    get:
+      summary: 事件 SSE 最小面
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: text/event-stream
 components:
   securitySchemes:
     bearerAuth:

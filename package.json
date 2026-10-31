@@ -1,7 +1,7 @@
 {
   "name": "dsh-mnemosyne",
-  "version": "0.2.0",
-  "description": "DeepSeek Harness 演化记忆系统：证据、时间、情境、状态演化、情绪与纠错",
+  "version": "3.0.0",
+  "description": "Mnemosyne 3.0：个人认知基础设施；DSH 插件适配层 + 独立 Python Node / Memory Bank",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -9,13 +9,13 @@
     "memory",
     "mnemosyne"
   ],
-  "homepage": "https://github.com/DSH-Raising-Plan/dsh-mnemosyne#readme",
+  "homepage": "https://github.com/canyueY/dsh-mnemosyne#readme",
   "bugs": {
-    "url": "https://github.com/DSH-Raising-Plan/dsh-mnemosyne/issues"
+    "url": "https://github.com/canyueY/dsh-mnemosyne/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DSH-Raising-Plan/dsh-mnemosyne.git"
+    "url": "git+https://github.com/canyueY/dsh-mnemosyne.git"
   },
   "author": "canyueY",
   "license": "AGPL-3.0-or-later",
@@ -29,24 +29,19 @@
   "files": [
     "src",
     "service",
-    "docs",
-    "ROADMAP.md",
-    "cordis.patch.yml",
-    "dsh.plugin.json",
     "README.md",
-    "README.en.md",
-    "README.zh.md",
     "CHANGELOG.md",
     "LICENSE",
-    "test",
-    "test-support"
+    "cordis.patch.yml",
+    "dsh.plugin.json"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test test/*.mjs",
-    "check": "node --check src/index.js && node --check src/memory-client.js && node --check src/memory-process.js && node --check src/tool-spec.js"
+    "test": "node --test legacy/dsh-plugin/test/*.mjs",
+    "check": "node --check src/index.js && node --check src/memory-client.js && node --check src/memory-process.js && node --check src/tool-spec.js",
+    "test:service": "python -m pytest service/tests -q"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.7"

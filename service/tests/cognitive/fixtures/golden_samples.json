@@ -1,0 +1,120 @@
+{
+  "version": "1.0",
+  "description": "E2.1 黄金样本：事实 / 推断 / 外部 / 冲突 / 未知",
+  "samples": [
+    {
+      "id": "fact_user_preference",
+      "kind": "fact",
+      "observation": {
+        "source_kind": "user_statement",
+        "content": "我不喜欢香菜",
+        "producer": "agent:standalone"
+      },
+      "propose": {
+        "type": "semantic",
+        "content": "用户不喜欢香菜",
+        "status": "candidate",
+        "metadata": { "epistemic": "fact", "from_user": true }
+      },
+      "expect": {
+        "epistemic": "fact",
+        "may_promote_with_user_flag": true
+      }
+    },
+    {
+      "id": "inference_agent_guess",
+      "kind": "inference",
+      "observation": {
+        "source_kind": "agent_inference",
+        "content": "模型推断：用户可能喜欢安静的雨天",
+        "producer": "agent:standalone"
+      },
+      "propose": {
+        "type": "semantic",
+        "content": "用户可能喜欢安静的雨天",
+        "status": "active",
+        "metadata": { "epistemic": "inference" }
+      },
+      "expect": {
+        "epistemic": "inference",
+        "forced_status": "candidate",
+        "reason": "long_term_active_requires_observation_source_ids_or_coercion"
+      }
+    },
+    {
+      "id": "external_import",
+      "kind": "external",
+      "observation": {
+        "source_kind": "system",
+        "content": "外部导入：用户曾在旧系统记录喜欢滑板",
+        "producer": "migrate.amem",
+        "metadata": { "external_id": "amem_42" }
+      },
+      "propose": {
+        "type": "semantic",
+        "content": "用户喜欢滑板",
+        "status": "candidate",
+        "metadata": { "epistemic": "external", "external_id": "amem_42" }
+      },
+      "expect": {
+        "epistemic": "external",
+        "identity_agent": "agent:standalone"
+      }
+    },
+    {
+      "id": "conflict_food_pair",
+      "kind": "conflict",
+      "a": {
+        "observation": {
+          "source_kind": "user_statement",
+          "content": "我喜欢吃辣",
+          "producer": "agent:standalone"
+        },
+        "propose": {
+          "type": "semantic",
+          "content": "用户喜欢吃辣",
+          "status": "active",
+          "metadata": { "epistemic": "fact", "from_user": true }
+        }
+      },
+      "b": {
+        "observation": {
+          "source_kind": "user_statement",
+          "content": "我不吃辣，最近胃不好",
+          "producer": "agent:standalone"
+        },
+        "propose": {
+          "type": "semantic",
+          "content": "用户不吃辣",
+          "status": "active",
+          "metadata": { "epistemic": "fact", "from_user": true }
+        }
+      },
+      "expect": {
+        "both_retained": true,
+        "relation": "contradicts",
+        "both_searchable": true
+      }
+    },
+    {
+      "id": "unknown_vague",
+      "kind": "unknown",
+      "observation": {
+        "source_kind": "dialog",
+        "content": "那个东西……算了不说了",
+        "producer": "agent:standalone"
+      },
+      "propose": {
+        "type": "semantic",
+        "content": "用户提到未指明的事物",
+        "status": "candidate",
+        "metadata": { "epistemic": "unknown", "confidence_hint": 0.1 }
+      },
+      "expect": {
+        "epistemic": "unknown",
+        "status": "candidate",
+        "no_auto_active": true
+      }
+    }
+  ]
+}

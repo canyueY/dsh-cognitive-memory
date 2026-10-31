@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mnemosyne.core.service import MemoryService
-from mnemosyne.domain.models import ObservationIn, SourceKind
-from mnemosyne.events.bus import EventBus
-from mnemosyne.jobs.dispatcher import BackgroundRuntime
-from mnemosyne.storage.db import Database
+from cognitive_memory.core.service import MemoryService
+from cognitive_memory.domain.models import ObservationIn, SourceKind
+from cognitive_memory.events.bus import EventBus
+from cognitive_memory.jobs.dispatcher import BackgroundRuntime
+from cognitive_memory.storage.db import Database
 
 
 class OutboxRecoveryTests(unittest.TestCase):

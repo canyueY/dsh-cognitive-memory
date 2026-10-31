@@ -1,0 +1,16 @@
+{
+  "name": "@mnemosyne/client",
+  "version": "0.1.0",
+  "description": "Minimal TypeScript client for Mnemosyne / cognitive-memory Node REST API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "AGPL-3.0-or-later"
+}
