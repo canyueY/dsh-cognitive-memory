@@ -41,6 +41,12 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 
 *2.0 的两个入口，收敛为 3.0 的一个权威仓；Node、DSH 适配层与旧插件归档各归其位。*
 
+### 全部差异与重点
+
+![Mnemosyne 2.0 与 3.0 全部差异与重点](service/docs/assets/architecture/mnemosyne-3-differences.png)
+
+*八个维度看差异；真正要守住的是运行时四件事：数据目录、记忆格式、API / 证据链、权限边界。*
+
 > 3.0 是合并后的全新版本：不再把 DSH 插件壳与 Node 分成两个仓库维护。旧 npm 包 `dsh-mnemosyne@0.2` 仍可在 npm 历史中安装，但不再接收新能力。
 
 迁移细节与版本兼容见 [`MIGRATION_3.0.md`](MIGRATION_3.0.md)。
