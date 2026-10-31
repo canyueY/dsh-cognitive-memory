@@ -1450,7 +1450,7 @@ class MemoryService:
         return {
             "ok": True,
             "service": "cognitive-memory",
-            "version": "0.2.0",
+            "version": "3.0.0",
             "memories": mem_n,
             "observations": obs_n,
             "outbox_pending": pending,
@@ -1460,7 +1460,7 @@ class MemoryService:
             "emotion_write_enabled": self.emotion_write_enabled,
             "emotion_shadow_only": self.emotion_shadow_only,
             "emotion_retrieval_enabled": self.emotion_retrieval_enabled,
-            "mnemosyne_version": "2.0",
+            "mnemosyne_version": "3.0",
             "identity": True,
             "principals": principals,
             "banks": True,
