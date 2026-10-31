@@ -211,7 +211,7 @@ Invariant Violation
 在 `9eb9b93` 上执行：
 
 ```text
-pytest -q                        221 passed, 1 warning in 20.36s
+pytest -q                        228 passed, 1 warning in 25.69s
 npm test                         7 passed
 npm run check                    passed
 host-compat-021.mjs              2 passed

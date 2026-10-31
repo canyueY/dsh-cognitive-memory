@@ -26,6 +26,9 @@ from cognitive_memory.domain.models import (
     ClaimRedirectIn,
     ClaimRelateIn,
     ClaimSplitIn,
+    ClaimRetractIn,
+    ClaimExpireIn,
+    ClaimSupersedeIn,
     ClaimTransitionIn,
     ClaimVerifyIn,
     FaultPipelineIn,
@@ -822,6 +825,8 @@ def create_app(
             bank_id=body.bank_id,
             source_memory_id=body.source_memory_id,
             persist_unresolved=body.persist_unresolved,
+            validity_from=body.validity_from,
+            validity_to=body.validity_to,
         )
 
     @app.get(f"{pref}/claims/{{claim_id}}")
@@ -869,7 +874,85 @@ def create_app(
             reason=body.reason,
             evidence_refs=body.evidence_refs,
             actor=body.actor or access.actor_id,
+            replacement_claim_id=body.replacement_claim_id,
+            confidence=body.confidence,
         )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/supersede")
+    def claims_supersede(
+        claim_id: str,
+        body: ClaimSupersedeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.supersede")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().supersede(
+            claim_id,
+            body.replacement_claim_id,
+            reason=body.reason,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+            confidence=body.confidence,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/retract")
+    def claims_retract(
+        claim_id: str,
+        body: ClaimRetractIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.retract")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().retract(
+            claim_id,
+            reason=body.reason,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+            confidence=body.confidence,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/expire")
+    def claims_expire(
+        claim_id: str,
+        body: ClaimExpireIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.expire")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().expire(
+            claim_id,
+            reason=body.reason,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+            confidence=body.confidence,
+        )
+
+    @app.get(f"{pref}/claims/{{claim_id}}/decisions")
+    def claims_decisions(
+        claim_id: str,
+        limit: int = 50,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.decisions")
+        ),
+    ) -> dict[str, Any]:
+        raw = _claim_store().get(claim_id, follow_redirect=False, principal=None)
+        if not raw:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        bank = str(raw.get("bank_id") or "personal")
+        principal = access.to_security_context(default_bank=bank)
+        if access.is_node_admin:
+            principal.authorized_grants = list(
+                set(principal.authorized_grants or []) | {f"bank:{bank}"}
+            )
+            principal.bank_id = bank
+        if not _claim_store().get(claim_id, principal=principal):
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        items = _claim_store().list_decisions(claim_id, limit=limit)
+        return {"ok": True, "claim_id": claim_id, "items": items, "count": len(items)}
 
     @app.post(f"{pref}/claims/{{claim_id}}/evidence")
     def claims_evidence(

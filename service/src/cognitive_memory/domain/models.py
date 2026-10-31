@@ -266,6 +266,8 @@ class ClaimProposeIn(BaseModel):
     bank_id: str = "personal"
     source_memory_id: str | None = None
     persist_unresolved: bool = True
+    validity_from: str | None = None
+    validity_to: str | None = None
 
 
 class ClaimTransitionIn(BaseModel):
@@ -273,6 +275,30 @@ class ClaimTransitionIn(BaseModel):
     reason: str = ""
     evidence_refs: list[str] = Field(default_factory=list)
     actor: str = ""
+    replacement_claim_id: str | None = None
+    confidence: float | None = None
+
+
+class ClaimSupersedeIn(BaseModel):
+    replacement_claim_id: str
+    reason: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+    confidence: float | None = None
+
+
+class ClaimRetractIn(BaseModel):
+    reason: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+    confidence: float | None = None
+
+
+class ClaimExpireIn(BaseModel):
+    reason: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+    confidence: float | None = None
 
 
 class ClaimEvidenceIn(BaseModel):

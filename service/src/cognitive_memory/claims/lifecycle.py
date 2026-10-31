@@ -16,6 +16,7 @@ class ClaimLifecycle(str, Enum):
     VERIFIED = "verified"
     DISPUTED = "disputed"
     REJECTED = "rejected"
+    RETRACTED = "retracted"
     EXPIRED = "expired"
     SUPERSEDED = "superseded"
 
@@ -27,7 +28,9 @@ _ALLOWED: dict[ClaimLifecycle, set[ClaimLifecycle]] = {
         ClaimLifecycle.QUALIFIED,
         ClaimLifecycle.DISPUTED,
         ClaimLifecycle.REJECTED,
+        ClaimLifecycle.RETRACTED,
         ClaimLifecycle.SUPERSEDED,
+        ClaimLifecycle.EXPIRED,
     },
     ClaimLifecycle.SUPPORTED: {
         ClaimLifecycle.VERIFIED,
@@ -36,6 +39,7 @@ _ALLOWED: dict[ClaimLifecycle, set[ClaimLifecycle]] = {
         ClaimLifecycle.EXPIRED,
         ClaimLifecycle.SUPERSEDED,
         ClaimLifecycle.REJECTED,
+        ClaimLifecycle.RETRACTED,
     },
     ClaimLifecycle.QUALIFIED: {
         ClaimLifecycle.SUPPORTED,
@@ -43,11 +47,13 @@ _ALLOWED: dict[ClaimLifecycle, set[ClaimLifecycle]] = {
         ClaimLifecycle.DISPUTED,
         ClaimLifecycle.EXPIRED,
         ClaimLifecycle.SUPERSEDED,
+        ClaimLifecycle.RETRACTED,
     },
     ClaimLifecycle.VERIFIED: {
         ClaimLifecycle.DISPUTED,
         ClaimLifecycle.EXPIRED,
         ClaimLifecycle.SUPERSEDED,
+        ClaimLifecycle.RETRACTED,
         ClaimLifecycle.SUPPORTED,  # revalidate downgrade
     },
     ClaimLifecycle.DISPUTED: {
@@ -55,14 +61,17 @@ _ALLOWED: dict[ClaimLifecycle, set[ClaimLifecycle]] = {
         ClaimLifecycle.REJECTED,
         ClaimLifecycle.SUPERSEDED,
         ClaimLifecycle.EXPIRED,
+        ClaimLifecycle.RETRACTED,
     },
     ClaimLifecycle.EXPIRED: {
         ClaimLifecycle.SUPPORTED,
         ClaimLifecycle.VERIFIED,  # after revalidation
         ClaimLifecycle.SUPERSEDED,
         ClaimLifecycle.REJECTED,
+        ClaimLifecycle.RETRACTED,
     },
-    ClaimLifecycle.REJECTED: {ClaimLifecycle.SUPERSEDED},
+    ClaimLifecycle.REJECTED: {ClaimLifecycle.SUPERSEDED, ClaimLifecycle.RETRACTED},
+    ClaimLifecycle.RETRACTED: {ClaimLifecycle.SUPERSEDED},
     ClaimLifecycle.SUPERSEDED: set(),
 }
 

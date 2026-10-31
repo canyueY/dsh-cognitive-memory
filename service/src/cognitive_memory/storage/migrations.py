@@ -621,6 +621,43 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON fault_stages(fault_id, created_at);
         """,
     ),
+    (
+        "016_judgment_temporal_v1",
+        """
+        -- Judgment supersession / retraction / expiry temporal traceability
+        ALTER TABLE claims ADD COLUMN validity_from TEXT;
+        ALTER TABLE claims ADD COLUMN validity_to TEXT;
+        ALTER TABLE claims ADD COLUMN superseded_at TEXT;
+        ALTER TABLE claims ADD COLUMN retracted_at TEXT;
+        ALTER TABLE claims ADD COLUMN expired_at TEXT;
+        ALTER TABLE claims ADD COLUMN last_confirmed_at TEXT;
+        ALTER TABLE claims ADD COLUMN superseded_by TEXT;
+
+        ALTER TABLE claim_lifecycle_events ADD COLUMN trace_id TEXT;
+        ALTER TABLE claim_lifecycle_events ADD COLUMN decision_id TEXT;
+
+        CREATE TABLE IF NOT EXISTS claim_decision_records (
+          id TEXT PRIMARY KEY,
+          claim_id TEXT NOT NULL,
+          operation TEXT NOT NULL,
+          previous_status TEXT NOT NULL,
+          next_status TEXT NOT NULL,
+          trigger_evidence_json TEXT NOT NULL DEFAULT '[]',
+          replacement_claim_id TEXT,
+          reason TEXT NOT NULL DEFAULT '',
+          decision_at TEXT NOT NULL,
+          actor TEXT NOT NULL DEFAULT '',
+          confidence REAL,
+          trace_id TEXT,
+          schema_version TEXT NOT NULL DEFAULT 'claim.decision.v1',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_claim_decisions_claim
+          ON claim_decision_records(claim_id, decision_at);
+        CREATE INDEX IF NOT EXISTS idx_claim_decisions_trace
+          ON claim_decision_records(trace_id);
+        """,
+    ),
 ]
 
 
