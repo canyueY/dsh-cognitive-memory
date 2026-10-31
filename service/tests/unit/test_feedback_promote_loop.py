@@ -14,7 +14,7 @@ from cognitive_memory.domain.models import (
 
 
 class FeedbackPromoteLoopTests(unittest.TestCase):
-    def test_useful_feedback_promotes_candidate(self) -> None:
+    def test_useful_feedback_records_utility_without_promoting_fact(self) -> None:
         tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         try:
             ctx = build_context(data_dir=tmp.name, token="t")
@@ -32,11 +32,12 @@ class FeedbackPromoteLoopTests(unittest.TestCase):
                     FeedbackIn(memory_id=mem.id, useful=True, note="yes", producer="test")
                 )
                 self.assertTrue(out.get("ok"))
-                self.assertTrue(out.get("promoted"))
+                self.assertFalse(out.get("promoted"))
+                self.assertEqual(out["useful_feedback_count"], 1)
                 got = ctx.service.get_memory(mem.id)
                 status = got.get("status") if isinstance(got, dict) else getattr(got, "status", None)
                 status_s = getattr(status, "value", None) or str(status)
-                self.assertEqual(str(status_s).lower(), "active")
+                self.assertEqual(str(status_s).lower(), "candidate")
             finally:
                 ctx.db.close()
         finally:

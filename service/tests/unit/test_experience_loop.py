@@ -48,6 +48,8 @@ class ExperienceLoopTests(unittest.TestCase):
         return m.id
 
     def test_schema_evolution_modes(self) -> None:
+        from cognitive_memory.governance.capability_gate import set_capability_level
+        set_capability_level(self.db, "SCHEMA_MUTATION", level="CONTROLLED", enabled=True)
         sid = self.svc.store_cognitive_schema(
             {
                 "name": "用户偏好表达方式",
@@ -61,7 +63,7 @@ class ExperienceLoopTests(unittest.TestCase):
         self.assertEqual(dry["mode"], ASSIMILATION)
         done = evolve_schema(self.svc, sid, supporting=["m2"], confirm=True)
         self.assertEqual(done["mode"], ASSIMILATION)
-        self.assertGreater(done["schema"]["confidence"], 0.5)
+        self.assertEqual(done["schema"]["confidence"], 0.5)
         self.assertTrue(done["schema"]["evolution_history"])
 
         acc = evolve_schema(
@@ -88,18 +90,18 @@ class ExperienceLoopTests(unittest.TestCase):
 
     def test_feedback_learning_distinguishes_sources(self) -> None:
         mid = self._mem("用户喜欢先给结论")
-        base = self.svc.get_memory(mid)["confidence"] or 0.4
+        base = self.svc.get_memory(mid)["confidence"]
         out = apply_feedback_learning(
             self.svc, mid, source=OUTCOME, outcome="success", note="结果正确"
         )
         self.assertTrue(out["ok"])
-        self.assertGreater(out["confidence"], base)
+        self.assertEqual(out["confidence"], base)
         self.assertEqual(out["plan"]["source"], OUTCOME)
         self.assertFalse(out["plan"]["promote_eligible"])
 
         self.assertGreater(
-            classify_feedback(source=USER_EXPLICIT, useful=True)["confidence_delta"],
-            classify_feedback(source=SELF_EVAL, self_score=1.0)["confidence_delta"],
+            classify_feedback(source=USER_EXPLICIT, useful=True)["utility_signal"],
+            classify_feedback(source=SELF_EVAL, self_score=1.0)["utility_signal"],
         )
 
     def test_semantic_space_is_optional_signal(self) -> None:

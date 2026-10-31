@@ -65,6 +65,19 @@ def run_offline_eval(
         exps = experiences.list(limit=100)
 
     prop = compute_propensity(exps, strategy_scope=strat.get("scope") or {})
+    from cognitive_memory.strategy.evaluation import evaluate_policy
+    by_id = {exp["id"]: exp for exp in exps}
+    evaluation_rows = []
+    for log in logs:
+        if log.get("decision") == "offline_eval":
+            continue
+        detail = log.get("detail") or {}
+        exp = by_id.get(log.get("experience_id")) or {}
+        evaluation_rows.append({
+            **detail, "propensity":log.get("propensity"),
+            "reward":exp.get("reward", (exp.get("outcome") or {}).get("reward")),
+        })
+    evaluation = evaluate_policy(evaluation_rows)
     pairwise: list[dict[str, Any]] = []
     for i in range(min(len(exps), 10)):
         for j in range(i + 1, min(len(exps), 10)):
@@ -95,7 +108,7 @@ def run_offline_eval(
             strategy_id,
             decision="offline_eval",
             outcome="report",
-            propensity=prop["propensity_score"],
+            propensity=None,
             overlap=prop.get("mean_scope_overlap"),
             detail={"n": prop["n"], "pairwise_n": len(pairwise)},
         )
@@ -106,6 +119,8 @@ def run_offline_eval(
         "status_unchanged": strat["status"],
         "gate": unlocked,
         "propensity": prop,
+        "evaluation": evaluation,
+        "status": evaluation["status"],
         "pairwise_overlap_sample": pairwise[:20],
         "deploy": {
             "allowed": False,

@@ -99,4 +99,7 @@ def compute_propensity(
         "success_rate": None if success_rate is None else round(success_rate, 6),
         "mean_scope_overlap": None if mean_ov is None else round(mean_ov, 6),
         "propensity_score": score,
+        "suitability_score": score,
+        "score_semantics": "suitability_not_action_probability",
+        "probability_source": "use logged behavior_policy for off-policy evaluation",
     }

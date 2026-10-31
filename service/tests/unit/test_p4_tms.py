@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from tests.support import seed_evidence
 from pathlib import Path
 
 from cognitive_memory.claims.store import ClaimStore
@@ -80,6 +81,8 @@ class TmsClaimWireTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.db = Database(Path(self.tmp.name) / "memory.db")
         self.store = ClaimStore(self.db)
+        seed_evidence(self.db, 'obs_tms_1')
+        seed_evidence(self.db, 'obs_tms_2')
 
     def tearDown(self) -> None:
         self.db.close()

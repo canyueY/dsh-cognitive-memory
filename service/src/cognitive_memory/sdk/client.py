@@ -113,6 +113,7 @@ class MnemosyneClient:
         useful: bool | None = None,
         incorrect: bool | None = None,
         note: str = "",
+        feedback_kind: str = "unclassified",
     ) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -123,6 +124,7 @@ class MnemosyneClient:
                 "incorrect": incorrect,
                 "note": note,
                 "producer": "mnemosyne-sdk",
+                "feedback_kind": feedback_kind,
             },
         )
 
@@ -135,3 +137,27 @@ class MnemosyneClient:
 
     def contract(self) -> dict[str, Any]:
         return self._request("GET", "/contract")
+
+    def run_cognitive_task(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cognition/tasks/run", json=payload)
+
+    def register_validation_suite(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cognition/validation-suites", json=payload)
+
+    def record_cognitive_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", f"/cognition/tasks/{run_id}/feedback", json=payload)
+
+    def propose_learning_update(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cognition/learning-updates", json=payload)
+
+    def evaluate_learning_update(self, update_id: str) -> dict[str, Any]:
+        return self._request("POST", f"/cognition/learning-updates/{update_id}/evaluate")
+
+    def apply_learning_update(self, update_id: str, *, confirm: bool = False) -> dict[str, Any]:
+        return self._request("POST", f"/cognition/learning-updates/{update_id}/apply", params={"confirm": confirm})
+
+    def rollback_learning_update(self, update_id: str, *, confirm: bool = False) -> dict[str, Any]:
+        return self._request("POST", f"/cognition/learning-updates/{update_id}/rollback", params={"confirm": confirm})
+
+    def record_profile_hypothesis(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cognition/profile-hypotheses", json=payload)

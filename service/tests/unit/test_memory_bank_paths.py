@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 from unittest import mock
 
@@ -49,7 +50,11 @@ class MemoryBankPathsTests(unittest.TestCase):
             src = Path(tmp) / "DSH" / "cognitive-memory"
             dst = Path(tmp) / MEMORY_BANK_NAME
             ensure_layout(src)
-            (src / "data" / "memory.db").write_bytes(b"sqlite-fake" * 100)
+            conn=sqlite3.connect(src / "data" / "memory.db")
+            conn.execute("CREATE TABLE fixture(content TEXT)")
+            conn.execute("INSERT INTO fixture VALUES ('preserved')")
+            conn.commit()
+            conn.close()
             (src / "runtime" / "token").write_text("t", encoding="utf-8")
             st = migration_status(target=dst, legacy=src)
             self.assertTrue(st["recommend_migrate"])

@@ -59,7 +59,10 @@ def iter_sqlite_table(
     content_col: str = "content",
     source_system: str = "sqlite",
 ) -> Iterator[InterchangeRecord]:
-    conn = sqlite3.connect(str(path))
+    for identifier in (table,id_col,content_col):
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*",identifier):
+            raise ValueError("invalid_sqlite_identifier")
+    conn = sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True)
     conn.row_factory = sqlite3.Row
     try:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}

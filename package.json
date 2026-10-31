@@ -1,7 +1,7 @@
 {
   "name": "dsh-mnemosyne",
-  "version": "3.0.0",
-  "description": "Mnemosyne 3.0：个人认知基础设施；DSH 插件适配层 + 独立 Python Node / Memory Bank",
+  "version": "2.0.0",
+  "description": "Mnemosyne 2.0：个人认知基础设施；DSH 插件适配层 + 独立 Python Node / Memory Bank",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -31,7 +31,7 @@
     "service",
     "README.md",
     "CHANGELOG.md",
-    "MIGRATION_3.0.md",
+    "MIGRATION_2.0.md",
     "LICENSE",
     "cordis.patch.yml",
     "dsh.plugin.json"

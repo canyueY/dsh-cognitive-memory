@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -45,6 +45,17 @@ class RelationKind(str, Enum):
     LOCATED_AT = "located_at"
     DEPENDS_ON = "depends_on"
     OBSERVED_DURING = "observed_during"
+    CONTAINS = "contains"
+    PERFORMED_BY = "performed_by"
+    COMPOSED_BY = "composed_by"
+    BELONGS_TO = "belongs_to"
+    TAGGED_AS = "tagged_as"
+    LISTENED_TO = "listened_to"
+    SAVES = "saves"
+    FOLLOWS = "follows"
+    LIKES = "likes"
+    FAVORITES = "favorites"
+    IMPORTED_FROM = "imported_from"
 
 
 class MemoryRelationIn(BaseModel):
@@ -182,9 +193,11 @@ class FeedbackIn(BaseModel):
     incorrect: bool | None = None
     note: str = ""
     producer: str = "dsh.agent"
+    feedback_kind: Literal["unclassified", "fact_correction", "expression_preference", "task_outcome", "execution_failure", "constraint_violation"] = "unclassified"
 
 
 class SearchQuery(BaseModel):
+    domain: str | None = None
     query: str = ""
     types: list[MemoryType] | None = None
     status: list[MemoryStatus] | None = None
@@ -200,6 +213,7 @@ class SearchQuery(BaseModel):
 
 
 class ContextBuildIn(BaseModel):
+    domain: str | None = None
     query: str
     token_budget: int | None = None
     types: list[MemoryType] | None = None
@@ -216,6 +230,7 @@ class ContextBuildOut(BaseModel):
 
 
 class RetrieveIn(BaseModel):
+    domain: str | None = None
     """Mnemosyne P1：统一检索入口（含触发规划）。"""
 
     query: str = ""
@@ -271,6 +286,7 @@ class ClaimProposeIn(BaseModel):
 
 
 class ClaimTransitionIn(BaseModel):
+    expected_version: int | None = None
     target_status: str
     reason: str = ""
     evidence_refs: list[str] = Field(default_factory=list)
@@ -342,6 +358,7 @@ class ClaimVerifyIn(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     actor: str = ""
     evidence_still_valid: bool = True
+    expected_version: int | None = None
 
 
 class EvidenceObjectCreateIn(BaseModel):
@@ -352,6 +369,8 @@ class EvidenceObjectCreateIn(BaseModel):
     content: str = ""
     role_hint: str = "support"
     legacy_memory_id: str | None = None
+    root_source_id: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class EvidenceIndependenceIn(BaseModel):

@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from cognitive_memory.core.service import MemoryService
-from cognitive_memory.governance.schema_governance import authorize_schema_mutation
+from cognitive_memory.governance.schema_governance import authorize_schema_mutation, schema_transaction
 
 
 def _links(sch: dict[str, Any]) -> list[dict[str, Any]]:
@@ -75,6 +75,7 @@ def impact_of_schema(service: MemoryService, schema_id: str) -> dict[str, Any]:
     }
 
 
+@schema_transaction
 def split_schema(
     service: MemoryService,
     schema_id: str,
@@ -84,6 +85,7 @@ def split_schema(
     confirm: bool = False,
     existing_plan_id: str | None = None,
     _governance_preauthorized: bool = False,
+    preview: bool = False,
 ) -> dict[str, Any]:
     """将一图式拆为多个子图式；默认只出变更计划。
 
@@ -96,7 +98,7 @@ def split_schema(
         return {"ok": False, "detail": "child_specs_required"}
 
     plan_id = existing_plan_id
-    if not plan_id:
+    if not plan_id and not preview:
         plan_id = service.store_cognitive_change_plan(
             {
                 "operation": "SPLIT",
@@ -113,7 +115,7 @@ def split_schema(
                 "payload": {"child_specs": child_specs, "parent_id": schema_id},
             }
         )
-    if not confirm:
+    if preview or not confirm:
         return {
             "ok": True,
             "dry_run": True,
@@ -123,7 +125,7 @@ def split_schema(
             "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
         }
 
-    if not _governance_preauthorized:
+    if confirm:
         auth = authorize_schema_mutation(
             service.db,
             confirm=True,
@@ -190,6 +192,7 @@ def split_schema(
     }
 
 
+@schema_transaction
 def merge_schemas(
     service: MemoryService,
     schema_ids: list[str],
@@ -199,6 +202,7 @@ def merge_schemas(
     confirm: bool = False,
     existing_plan_id: str | None = None,
     _governance_preauthorized: bool = False,
+    preview: bool = False,
 ) -> dict[str, Any]:
     """合并多个图式为一；默认计划。落盘需 confirm + SCHEMA_MUTATION。"""
     ids = [str(x) for x in schema_ids if x]
@@ -212,7 +216,7 @@ def merge_schemas(
         schemas.append(sch)
 
     plan_id = existing_plan_id
-    if not plan_id:
+    if not plan_id and not preview:
         plan_id = service.store_cognitive_change_plan(
             {
                 "operation": "MERGE",
@@ -229,7 +233,7 @@ def merge_schemas(
                 "payload": {"source_ids": ids},
             }
         )
-    if not confirm:
+    if preview or not confirm:
         return {
             "ok": True,
             "dry_run": True,
@@ -239,7 +243,7 @@ def merge_schemas(
             "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
         }
 
-    if not _governance_preauthorized:
+    if confirm:
         auth = authorize_schema_mutation(
             service.db,
             confirm=True,

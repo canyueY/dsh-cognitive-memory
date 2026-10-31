@@ -161,7 +161,7 @@ class BackgroundRuntime:
             rows = conn.execute(
                 """
                 SELECT * FROM tasks
-                WHERE status='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                WHERE task_type!='cognitive.meta' AND status='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
                 ORDER BY created_at ASC
                 LIMIT ?
                 """,
@@ -211,7 +211,9 @@ class BackgroundRuntime:
                         (status, attempts, next_at, str(exc)[:500], _now(), tid),
                     )
                     conn.commit()
-        return n
+        from cognitive_memory.strategy.task_queue import MetaTaskQueue
+        meta=MetaTaskQueue(self.db).run_once()
+        return n + int(meta.get("executed",False))
 
     def _handle_consolidation(self, payload: dict[str, Any]) -> None:
         """慢速通道 V1：把观察整理为 episodic 候选（规则式，可后续换 LLM）。"""

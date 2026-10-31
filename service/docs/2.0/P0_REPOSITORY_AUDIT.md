@@ -1,11 +1,11 @@
 # Mnemosyne 2.0 — P0 仓库审计报告
 
-**审计对象：** `dsh-mnemosyne` 仓库中的 `service/` Node/Core，以及根目录 DSH 适配层  
+**审计对象：** `dsh-mnemosyne` 仓库中的 `service/` Node/Core，以及根目录 DSH 适配层
 **审计代码快照：** `589c694`（`docs: add 3.0 algorithm stack analysis`）
-**审计文档提交：** `c82d47e`  
-**软件版本：** `3.0.0`  
-**审计日期：** 2026-10-31（Asia/Shanghai）  
-**审计性质：** P0 Repository Audit；只读检查、测试运行、合成基准与只读数据盘点  
+**审计文档提交：** `c82d47e`
+**软件版本：** `2.0.0`
+**审计日期：** 2026-10-31（Asia/Shanghai）
+**审计性质：** P0 Repository Audit；只读检查、测试运行、合成基准与只读数据盘点
 **结论状态：** 现有系统可作为 2.0 的运行时与记忆基础；**不能把现有能力视为 2.0 Claim 架构已经实现**
 
 > **重要：** 本报告是代码快照 `589c694` / 文档提交 `c82d47e` 的历史审计。当前 `main` 已包含 P2–P7 与 DSH 0.2.1 宿主修复；Claim/Evidence/Verification/TMS/Strategy/Knowledge 不再是 Missing。当前状态见 [POST_AUDIT_DELTA.md](POST_AUDIT_DELTA.md)。
@@ -21,14 +21,14 @@
 3. **最小 readiness 套件**：`scripts/mnemosyne_readiness_suite.py`，G1/G3/G4/G5/G6/G7 等 smoke gate 通过。
 4. **只读数据盘点与合成基准**：对当前 Memory Bank 做只读聚合统计；在临时库上用 2,000 条合成记忆测 in-process 基线。
 
-> 本报告中的 **Implemented / Partial / Missing / Stub** 是工程状态，不是 2.0 设计目标。  
+> 本报告中的 **Implemented / Partial / Missing / Stub** 是工程状态，不是 2.0 设计目标。
 > 只读盘点不读取记忆正文，只统计表、状态、数量与类型。
 
 ---
 
 ## 2. 总体结论
 
-现有 3.0 Node 是一个可运行的：
+现有 2.0 Node 是一个可运行的：
 
 - Observation / Memory / Evidence-link 记忆系统；
 - Memory Bank / 版本 / 检索 / 关系 / 反馈系统；
@@ -46,7 +46,7 @@
 
 ### 一句话判断
 
-> **3.0 已把“记忆”和“请求级治理”做成了基础设施；2.0 的“Claim 认知判断”仍基本从零开始。**
+> **2.0 已把“记忆”和“请求级治理”做成了基础设施；当时的“Claim 认知判断”仍基本从零开始。**
 
 ---
 

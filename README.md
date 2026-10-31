@@ -1,4 +1,8 @@
-# Mnemosyne 3.0
+# Mnemosyne 2.0
+
+2026-11-01：按重构理论补全证据依赖、反馈隔离、有界任务与独立验收后的规则采用／回滚。接口、兼容变化和验证范围见 [理论实现报告](service/docs/2.0/THEORY_IMPLEMENTATION_2026_11_01.md)。
+
+本轮修复了权限、Verified、Claim 身份、迁移审批和 Trace 等审查问题，并新增本地接入/迁移闭环。实际验收与尚未完成的长期目标见 [实现补全报告](service/docs/2.0/AUDIT_REMEDIATION_2026_10_31.md)。
 
 ### Modular Evolving Memory Infrastructure for AI Agents
 
@@ -10,9 +14,9 @@ Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
 
 它为 AI Agent 和其他智能应用提供一套独立、持久、可治理、可演化的认知能力，让它们能够积累经验、形成记忆、理解关系、检索过去、修正认知，并在时间中持续学习。
 
-> **3.0 合并版：** 本仓 [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 是 Mnemosyne 3.0 的唯一权威仓。  
-> **2.0 历史：** 原 [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne) 已归档，只保留 2.0 历史，不再作为新版本入口。  
-> **本仓结构：** `service/` = Node / Core / Python Memory Service；根目录 `src/` + `package.json` = DSH 插件适配层；`legacy/dsh-plugin/` = 0.2 旧插件归档。  
+> **2.0 统一版：** 本仓 [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 是 Mnemosyne 2.0 的唯一权威仓。
+> **历史：** 原 [`canyueY/mnemosyne`](https://github.com/canyueY/mnemosyne) 已归档，只保留历史，不再作为新版本入口。
+> **本仓结构：** `service/` = Node / Core / Python Memory Service；根目录 `src/` + `package.json` = DSH 插件适配层；`legacy/dsh-plugin/` = 0.2 旧插件归档。
 > 基线、GA 与完整文档见 [`service/docs/REPO_BASELINE.md`](service/docs/REPO_BASELINE.md)。
 
 > **关键边界：一个 Node 一个 Memory Bank；`mnemosyne-memory-bank` 不是第二套记忆库。**
@@ -27,7 +31,7 @@ Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
 
 Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务为核心原则。它可以作为独立记忆系统运行，也可以通过适配器接入 DeepSeek Harness（DSH）等 Agent 宿主。
 
-## 3.0 仓库结构
+## 2.0 仓库结构
 
 | 路径 | 作用 |
 | --- | --- |
@@ -35,31 +39,31 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 | `src/` + `package.json` | DSH 插件适配层：启动/守护 Node、注册 `memory_*` 工具 |
 | `legacy/dsh-plugin/` | 0.2 旧 DSH 插件归档，仅供追溯，不再作为主入口 |
 
-### 2.0 → 3.0：合并了什么
+### 从拆分到统一：合并了什么
 
-![Mnemosyne 2.0 与 3.0 架构差异](service/docs/assets/architecture/mnemosyne-2-vs-3.png)
+![旧版与统一版架构差异](service/docs/assets/architecture/mnemosyne-2-vs-3.png)
 
-*2.0 的两个入口，收敛为 3.0 的一个权威仓；Node、DSH 适配层与旧插件归档各归其位。*
+*旧版的两个入口，收敛为 2.0 的一个权威仓；Node、DSH 适配层与旧插件归档各归其位。*
 
 ### 全部差异与重点
 
-![Mnemosyne 2.0 与 3.0 全部差异与重点](service/docs/assets/architecture/mnemosyne-3-differences.png)
+![旧版与统一版全部差异与重点](service/docs/assets/architecture/mnemosyne-3-differences.png)
 
 *八个维度看差异；真正要守住的是运行时四件事：数据目录、记忆格式、API / 证据链、权限边界。*
 
-### 2.0 / 3.0 当前 / 3.0 目标：能力代际
+### 旧版 / 2.0 统一版 / Roadmap：能力代际
 
-> **重要口径：** 当前 3.0 是**仓库合并与版本统一**，不是算法跃迁。  
-> 结构发现、假设生成、策略学习、认知依赖图与受控自主演化，属于 **3.0 目标 / Roadmap**，尚未作为已交付能力。  
-> 2.0 是可信认知基础；3.0 当前先完成交付收敛；3.0 目标才讨论认知自演化。
+> **重要口径：** 当前 2.0 统一版是**仓库合并与版本统一**，不是算法跃迁。
+> 结构发现、假设生成、策略学习、认知依赖图与受控自主演化，属于 **Roadmap**，尚未作为已交付能力。
+> 旧版 2.0 是可信认知基础；2.0 统一版先完成交付收敛；Roadmap 才讨论认知自演化。
 
-![Mnemosyne 2.0 / 3.0 当前 / 3.0 目标能力代际](service/docs/assets/architecture/mnemosyne-3-capability-layers.png)
+![旧版 / 2.0 统一版 / Roadmap 能力代际](service/docs/assets/architecture/mnemosyne-3-capability-layers.png)
 
-*左：2.0 认知可靠性；中：3.0 当前交付合并；右：3.0 目标认知自演化（Roadmap）。*
+*左：旧版 2.0 认知可靠性；中：2.0 统一版交付合并；右：Roadmap 认知自演化。*
 
-完整算法分层、现有代码缺口与优先级见 [`MNEMOSYNE_3.0_ALGORITHM_STACK.md`](service/docs/MNEMOSYNE_3.0_ALGORITHM_STACK.md)。
+完整算法分层、现有代码缺口与优先级见 [`MNEMOSYNE_ROADMAP.md`](service/docs/MNEMOSYNE_ROADMAP.md)。
 
-| 维度 | 2.0（已实现） | 3.0 当前（已交付） | 3.0 目标（Roadmap） |
+| 维度 | 旧版 2.0（已实现） | 2.0 统一版（已交付） | Roadmap |
 | --- | --- | --- | --- |
 | 核心问题 | 系统凭什么相信一条记忆？ | 如何把 Node 与插件收敛成一个发布单元？ | 系统如何发现新的认知结构？ |
 | 主要对象 | 观察、证据、记忆、状态、关系 | 同一套 Node、仓库边界、版本与交付 | 假设、知识结构、策略、长期结果 |
@@ -70,9 +74,9 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 | Schema Evolution | 对既有结构做有依据的调整 | 同样；图式演化能力保留 | 发现更合适的结构，并验证结构调整是否真正改善表现 |
 | 自主性 | 在既定规则与权限内更新 | 同样；自主性没有提升 | 在安全边界内选择要探索、验证和优化的对象 |
 | 主要评价指标 | 事实可靠性、来源保留、检索准确性、更新可追溯性 | 仓库收敛、版本统一、运行时零迁移 | 泛化能力、预测质量、长期收益、结构质量、调整成本 |
-| 当前状态 | 2.0 已归档，历史保留 | **3.0.0 已交付** | **未交付**，按 Capability Gate 分阶段 |
+| 当前状态 | 旧版 2.0 已归档，历史保留 | **2.0.0 已交付** | **未交付**，按 Capability Gate 分阶段 |
 
-#### 3.0 目标优先级
+#### Roadmap 优先级
 
 | 优先级 | 能力 | 说明 |
 | --- | --- | --- |
@@ -90,22 +94,22 @@ Mnemosyne 以独立运行、模块化设计、可追溯数据和可组合服务�
 
 > **先可信，再自演化。** 如果系统还不能判断一种认知结构是否更好，就不应该让它自主地大规模修改自己的认知结构。
 
-### 3.0 升级内容
+### 2.0 统一版升级内容
 
-3.0 不是功能堆叠，而是把 2.0 的独立 Node 与 DSH 插件壳收敛为一个发布单元。
+2.0 统一版不是功能堆叠，而是把旧版 2.0 的独立 Node 与 DSH 插件壳收敛为一个发布单元。
 
 | 类别 | 升级内容 |
 | --- | --- |
 | 仓库 | `canyueY/mnemosyne` + `canyueY/dsh-mnemosyne` → 一个 `canyueY/dsh-mnemosyne` |
 | Node | 从仓库根目录迁入 `service/`；Node / Core / Memory Bank 实现不变 |
 | DSH 插件 | 根目录 `src/` + `package.json` 保留为适配层；启动并守护 `service/` |
-| 版本 | Node 2.0.0 / 插件 0.2.0 → 统一 `3.0.0` |
+| 版本 | Node 2.0.0 / 插件 0.2.0 → 统一 `2.0.0` |
 | 旧插件 | 0.2 完整归档到 `legacy/dsh-plugin/`，保留 tag `legacy/dsh-plugin-0.2.0` |
-| 文档 | 3.0 README + `service/docs/` + 新的 `REPO_BASELINE` |
+| 文档 | 2.0 README + `service/docs/` + 新的 `REPO_BASELINE` |
 | 数据 | **不迁移**：继续使用 `%LOCALAPPDATA%\Mnemosyne Memory Bank` |
 | 兼容 | REST 前缀 `/api/v1`、记忆格式、权限与证据链保持原协议 |
 
-#### 从 2.0 升级
+#### 从旧版 2.0 升级
 
 建议**新目录 clone**，不要把旧 2.0 工作区直接覆盖：
 
@@ -127,7 +131,7 @@ Linux / macOS：
 source .venv/bin/activate
 ```
 
-安装 3.0 Node：
+安装 2.0 Node：
 
 ```bash
 pip install -e "./service[dev]"
@@ -149,7 +153,7 @@ REST 仍为 /api/v1
 旧 DSH\cognitive-memory 只作为归档，不再作为默认路径
 ```
 
-> **不需要迁移记忆数据。** 3.0 变的是代码位置、仓库边界和发布版本；Memory Bank 的数据目录、记忆格式和 API 语义保持兼容。
+> **不需要迁移记忆数据。** 统一版变的是代码位置、仓库边界和发布版本；Memory Bank 的数据目录、记忆格式和 API 语义保持兼容。
 
 #### 回退
 
@@ -157,9 +161,9 @@ REST 仍为 /api/v1
 - 需要旧 DSH 插件：使用 tag `legacy/dsh-plugin-0.2.0` 或归档目录；
 - 旧 `canyueY/mnemosyne` 仓库已归档，不再接收新修复。
 
-> 3.0 是合并后的全新版本：不再把 DSH 插件壳与 Node 分成两个仓库维护。旧 npm 包 `dsh-mnemosyne@0.2` 仍可在 npm 历史中安装，但不再接收新能力。
+> 2.0 统一版是合并后的全新版本：不再把 DSH 插件壳与 Node 分成两个仓库维护。旧 npm 包 `dsh-mnemosyne@0.2` 仍可在 npm 历史中安装，但不再接收新能力。
 
-迁移细节与版本兼容见 [`MIGRATION_3.0.md`](MIGRATION_3.0.md)。
+迁移细节与版本兼容见 [`MIGRATION_2.0.md`](MIGRATION_2.0.md)。
 
 ---
 
@@ -404,7 +408,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
 
 ### 2.8 最终定位
 
-> **Mnemosyne 是个人认知基础设施，也是个人长期认知的权威管理层。**  
+> **Mnemosyne 是个人认知基础设施，也是个人长期认知的权威管理层。**
 > 它不要求取代所有外部记忆系统，而是通过开放协议连接、整合和治理它们，使个人认知能够跨 Agent、跨应用、跨时间持续积累与演化。
 
 **Mnemosyne 不是要成为世界上唯一的记忆库，而是要成为用户自己的认知中心。**
@@ -425,7 +429,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
 | Adapter / Plugin | 外部系统接入适配器 | 扩展和集成方式 |
 | SDK / API / MCP | 外部调用接口 | 互操作入口 |
 
-> **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**  
+> **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**
 > Mnemosyne 是整套基础设施；Node 是一次独立运行实例；Memory Bank 是 Node 内部的逻辑记忆空间。
 
 ### 2.10 运行时边界：一个 Node，一个 Memory Bank
@@ -463,7 +467,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
             └─ knowledge
 ```
 
-> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**  
+> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**
 > 两者逻辑上重合、可以关联，但不应该各自维护一套数据库。
 
 
@@ -539,7 +543,7 @@ Mnemosyne 不把所有反馈混为一谈。
 | --- | --- | ---: |
 | `user_explicit` | 用户明确表达的评价或纠正 | 0.10 |
 | `outcome` | 实际行为结果 | 0.06 |
-| `self_eval` | Agent 自我评估 | 0.02 | 
+| `self_eval` | Agent 自我评估 | 0.02 |
 
 三种信号具有不同的证据意义。
 

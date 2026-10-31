@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import secrets
 import uuid
+from functools import wraps
 from typing import Any, Callable
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from cognitive_memory.governance.access import AccessContext, make_access_dep, resolve_access
 
 from cognitive_memory.core.service import ConflictError, MemoryService, NotFoundError
+from cognitive_memory.cognition.loop_models import CognitiveTask, LearningProposal, ProfileHypothesis, TaskFeedback, ValidationSuite
 from cognitive_memory.domain.models import (
     AuthorityTransitionIn,
     CapabilityCheckIn,
@@ -136,6 +138,8 @@ def create_app(
         access = resolve_access(
             request, permission="memory.read", bank=bank, resource="memories.search"
         )
+        if not access.is_node_admin and any(b not in (access.banks or []) for b in (body.banks or ["personal"])):
+            raise HTTPException(status_code=403,detail={"code":"bank_denied"})
         rows = service.search(body)
         return {
             "items": [m.model_dump() for m in rows],
@@ -163,6 +167,8 @@ def create_app(
     ) -> dict[str, Any]:
         from cognitive_memory.governance.policy import PolicyDeniedError
 
+        if not access.is_node_admin and body.idempotency_key:
+            body=body.model_copy(update={"idempotency_key":f"agent:{access.actor_id}:{body.bank_id}:{body.idempotency_key}"})
         try:
             dump = service.propose_memory(body).model_dump()
         except PolicyDeniedError as exc:
@@ -429,6 +435,8 @@ def create_app(
             producer=body.producer,
             role_hint=body.role_hint,
             legacy_memory_id=body.legacy_memory_id,
+            root_source_id=body.root_source_id,
+            metadata=body.metadata,
         )
 
     @app.get(f"{pref}/evidences/{{evidence_id}}")
@@ -447,6 +455,19 @@ def create_app(
                 status_code=404, detail={"code": "not_found", "message": "evidence"}
             )
         return {"ok": True, "evidence": ev}
+
+    @app.post(f"{pref}/evidences/{{evidence_id}}/assessment")
+    def evidence_assessment(
+        evidence_id: str, body: dict[str, Any],
+        access: AccessContext = Depends(make_access_dep(permission="memory.admin", resource="evidences.assess")),
+    ) -> dict[str, Any]:
+        if not access.is_node_admin:
+            raise HTTPException(status_code=403, detail={"code":"node_admin_required"})
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+        return EvidenceObjectStore(service.db).assess(
+            evidence_id, state=str(body.get("state") or "unverified"),
+            actor=access.actor_id, provenance_chain=body.get("provenance_chain"),
+        )
 
     @app.post(f"{pref}/evidences/independence")
     def evidences_independence(
@@ -568,6 +589,7 @@ def create_app(
             ab_subject_key=str(body.ab_subject_key or ""),
             token_budget=body.token_budget,
             types=body.types,
+            domain=body.domain,
         )
 
     @app.post(f"{pref}/tasks")
@@ -779,7 +801,54 @@ def create_app(
             persist=body.persist,
         )
 
+    # Explicit subset compatibility: native grants and object checks still apply.
+    @app.post(f"{pref}/compat/mem0/add")
+    def compat_add(body: dict[str, Any], access: AccessContext = Depends(
+        make_access_dep(permission="memory.write",resource="compat.add")
+    )) -> dict[str, Any]:
+        from cognitive_memory.migration.compat_gateway import CompatGateway
+        return CompatGateway(service=service).add(
+            str(body.get("content") or body.get("memory") or ""),
+            bank_id=str(body.get("bank_id") or "personal"),
+            metadata=body.get("metadata"),idempotency_key=body.get("idempotency_key"),
+        )
+
+    @app.post(f"{pref}/compat/mem0/search")
+    def compat_search(body: dict[str, Any], access: AccessContext = Depends(
+        make_access_dep(permission="memory.read",resource="compat.search")
+    )) -> dict[str, Any]:
+        from cognitive_memory.migration.compat_gateway import CompatGateway
+        return CompatGateway(service=service).search(
+            str(body.get("query") or ""),bank_id=str(body.get("bank_id") or "personal"),
+            limit=int(body.get("limit") or 10),
+        )
+
+    @app.get(f"{pref}/compat/mem0/{{memory_id}}")
+    def compat_get(memory_id: str, access: AccessContext = Depends(
+        make_access_dep(permission="memory.read",resource="compat.get")
+    )) -> dict[str, Any]:
+        from cognitive_memory.migration.compat_gateway import CompatGateway
+        return CompatGateway(service=service).get(memory_id)
+
+    @app.delete(f"{pref}/compat/mem0/{{memory_id}}")
+    def compat_delete(memory_id: str, hard: bool = False, access: AccessContext = Depends(
+        make_access_dep(permission="memory.write",resource="compat.delete")
+    )) -> dict[str, Any]:
+        if hard:
+            raise HTTPException(status_code=501,detail={"code":"unsupported_delete_semantics"})
+        from cognitive_memory.migration.compat_gateway import CompatGateway
+        return CompatGateway(service=service).delete(memory_id)
+
     # ---- P2 Claim vertical slice ----
+    def claim_mutation(fn):
+        @wraps(fn)
+        def wrapped(*args,**kwargs):
+            from cognitive_memory.governance.access import recheck_write_access
+            with service.db.transaction():
+                recheck_write_access(service.db,kwargs["access"])
+                return fn(*args,**kwargs)
+        return wrapped
+
     def _claim_store():
         from cognitive_memory.claims.store import ClaimStore
 
@@ -808,6 +877,7 @@ def create_app(
         }
 
     @app.post(f"{pref}/claims/propose")
+    @claim_mutation
     def claims_propose(
         body: ClaimProposeIn,
         access: AccessContext = Depends(
@@ -863,6 +933,7 @@ def create_app(
         return {"ok": True, "claim": pack}
 
     @app.post(f"{pref}/claims/{{claim_id}}/transition")
+    @claim_mutation
     def claims_transition(
         claim_id: str,
         body: ClaimTransitionIn,
@@ -873,14 +944,30 @@ def create_app(
         return _claim_store().transition(
             claim_id,
             body.target_status,
+            expected_version=body.expected_version,
             reason=body.reason,
             evidence_refs=body.evidence_refs,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
             replacement_claim_id=body.replacement_claim_id,
             confidence=body.confidence,
         )
 
+    @app.get(f"{pref}/claims/{{claim_id}}/as-of")
+    def claim_as_of(claim_id: str, at: str,
+                    access: AccessContext = Depends(make_access_dep(permission="memory.read",resource="claims.as_of"))):
+        result=_claim_store().as_of(claim_id,at,
+            principal=None if access.is_node_admin else access.to_security_context())
+        if result is None:
+            from cognitive_memory.security.disclosure import opaque_not_found
+            raise HTTPException(status_code=404,detail=opaque_not_found(resource="claim"))
+        return result
+
+    @app.post(f"{pref}/claims/{{claim_id}}/replay")
+    def claim_replay(claim_id: str, _: None = Depends(require_token)):
+        return _claim_store().replay(claim_id)
+
     @app.post(f"{pref}/claims/{{claim_id}}/supersede")
+    @claim_mutation
     def claims_supersede(
         claim_id: str,
         body: ClaimSupersedeIn,
@@ -893,11 +980,12 @@ def create_app(
             body.replacement_claim_id,
             reason=body.reason,
             evidence_refs=body.evidence_refs,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
             confidence=body.confidence,
         )
 
     @app.post(f"{pref}/claims/{{claim_id}}/retract")
+    @claim_mutation
     def claims_retract(
         claim_id: str,
         body: ClaimRetractIn,
@@ -909,11 +997,12 @@ def create_app(
             claim_id,
             reason=body.reason,
             evidence_refs=body.evidence_refs,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
             confidence=body.confidence,
         )
 
     @app.post(f"{pref}/claims/{{claim_id}}/expire")
+    @claim_mutation
     def claims_expire(
         claim_id: str,
         body: ClaimExpireIn,
@@ -925,7 +1014,7 @@ def create_app(
             claim_id,
             reason=body.reason,
             evidence_refs=body.evidence_refs,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
             confidence=body.confidence,
         )
 
@@ -949,7 +1038,8 @@ def create_app(
                 set(principal.authorized_grants or []) | {f"bank:{bank}"}
             )
             principal.bank_id = bank
-        if not _claim_store().get(claim_id, principal=principal):
+        disclosed = _claim_store().get(claim_id, principal=principal)
+        if not disclosed or "evidence_refs" in (disclosed.get("visibility") or {}).get("denied_fields",[]):
             raise HTTPException(
                 status_code=404, detail={"code": "not_found", "message": "claim"}
             )
@@ -957,6 +1047,7 @@ def create_app(
         return {"ok": True, "claim_id": claim_id, "items": items, "count": len(items)}
 
     @app.post(f"{pref}/claims/{{claim_id}}/evidence")
+    @claim_mutation
     def claims_evidence(
         claim_id: str,
         body: ClaimEvidenceIn,
@@ -973,6 +1064,7 @@ def create_app(
         )
 
     @app.post(f"{pref}/claims/{{claim_id}}/redirect")
+    @claim_mutation
     def claims_redirect(
         claim_id: str,
         body: ClaimRedirectIn,
@@ -984,6 +1076,7 @@ def create_app(
         return _claim_store().redirect(claim_id, body.target_id, reason=body.reason)
 
     @app.post(f"{pref}/claims/{{claim_id}}/merge")
+    @claim_mutation
     def claims_merge(
         claim_id: str,
         body: ClaimMergeIn,
@@ -1000,6 +1093,7 @@ def create_app(
         )
 
     @app.post(f"{pref}/claims/{{claim_id}}/split")
+    @claim_mutation
     def claims_split(
         claim_id: str,
         body: ClaimSplitIn,
@@ -1072,6 +1166,7 @@ def create_app(
         )
 
     @app.post(f"{pref}/claims/{{claim_id}}/verify")
+    @claim_mutation
     def claims_verify(
         claim_id: str,
         body: ClaimVerifyIn,
@@ -1082,9 +1177,11 @@ def create_app(
         return _claim_store().submit_verified(
             claim_id,
             evidence_refs=body.evidence_refs,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
             authorized=True,
             evidence_still_valid=body.evidence_still_valid,
+            principal=None if access.is_node_admin else access.to_security_context(),
+            expected_version=body.expected_version,
         )
 
     @app.post(f"{pref}/claims/semantic-suggest")
@@ -1115,7 +1212,7 @@ def create_app(
             body.premises,
             kind=body.kind,
             reason=body.reason,
-            actor=body.actor or access.actor_id,
+            actor=access.actor_id if not access.is_node_admin else (body.actor or access.actor_id),
         )
 
     @app.post(f"{pref}/tms/propagate")
@@ -1179,7 +1276,8 @@ def create_app(
         from cognitive_memory.strategy.experience_store import ExperienceStore
 
         _ = access
-        items = ExperienceStore(service.db).list(bank_id=bank_id, limit=limit)
+        items = ExperienceStore(service.db).list(
+            bank_id=bank_id if access.is_node_admin else (bank_id or "personal"), limit=limit)
         return {"ok": True, "items": items, "count": len(items)}
 
     @app.post(f"{pref}/strategies")
@@ -1320,6 +1418,22 @@ def create_app(
             persist_propensity=body.persist_propensity,
             log_result=body.log_result,
         )
+
+    @app.post(f"{pref}/meta/tasks")
+    def meta_task_create(body: dict[str, Any], _: None = Depends(require_token)) -> dict[str, Any]:
+        from cognitive_memory.strategy.task_queue import MetaTaskQueue
+        try:
+            return MetaTaskQueue(service.db).submit(**body)
+        except (ValueError,TypeError) as exc:
+            raise HTTPException(status_code=422,detail=str(exc))
+
+    @app.get(f"{pref}/meta/tasks/{{task_id}}")
+    def meta_task_get(task_id: str, _: None = Depends(require_token)) -> dict[str, Any]:
+        from cognitive_memory.strategy.task_queue import MetaTaskQueue
+        result=MetaTaskQueue(service.db).get(task_id)
+        if result is None:
+            raise HTTPException(status_code=404,detail={"code":"not_found"})
+        return result
 
     @app.post(f"{pref}/meta/schedule")
     def meta_schedule(
@@ -1521,6 +1635,7 @@ def create_app(
             child_specs=list(body.get("child_specs") or []),
             note=str(body.get("note") or ""),
             confirm=bool(body.get("confirm")),
+            preview=bool(body.get("preview")),
         )
 
     @app.post(f"{pref}/schemas/merge")
@@ -1533,6 +1648,7 @@ def create_app(
             name=body.get("name"),
             note=str(body.get("note") or ""),
             confirm=bool(body.get("confirm")),
+            preview=bool(body.get("preview")),
         )
 
     @app.get(f"{pref}/schemas/{{schema_id}}/impact")
@@ -1745,12 +1861,31 @@ def create_app(
 
     @app.post(f"{pref}/components/install")
     def components_install(body: dict[str, Any], _: None = Depends(require_token)) -> dict[str, Any]:
-        return _components().install(
+        result = _components().install(
             str(body.get("source") or ""),
             force=bool(body.get("force")),
             skip_resolve=bool(body.get("skip_resolve")),
             authorize=bool(body.get("authorize")),
         )
+        if result.get("ok"):
+            result["domain_pack_registration"] = _components().apply_pending_domain_packs(service)
+        return result
+
+    @app.post(f"{pref}/domains/register")
+    def domains_register(body: dict[str, Any], _: None = Depends(require_token)) -> dict[str, Any]:
+        from cognitive_memory.domains.registrar import register_domain_pack
+        if body.get("pack_path"):
+            return register_domain_pack(service,str(body["pack_path"]),actor="node:admin")
+        if isinstance(body.get("pack"),dict):
+            return register_domain_pack(service,body["pack"],actor="node:admin")
+        return {"ok":True,"applied":_components().apply_pending_domain_packs(service)}
+
+    @app.get(f"{pref}/domains/{{domain_id}}")
+    def domains_get(domain_id: str, _: None = Depends(require_token)) -> dict[str, Any]:
+        schema=service.get_cognitive_schema(f"domain:{domain_id}")
+        if not schema:
+            raise HTTPException(status_code=404,detail={"code":"domain_not_found"})
+        return schema
 
     @app.get(f"{pref}/components/{{component_id}}")
     def components_get(component_id: str, _: None = Depends(require_token)) -> dict[str, Any]:
@@ -1879,5 +2014,50 @@ def create_app(
         return StreamingResponse(_gen(), media_type="text/event-stream")
 
 
+
+    # Explicit bounded cognitive loops: node-admin control plane, not an agent
+    # shortcut around per-object grants or schema deployment capabilities.
+    def _loops():
+        from cognitive_memory.cognition.loops import CognitiveLoops
+        return CognitiveLoops(service)
+
+    @app.post(f"{pref}/cognition/tasks/run")
+    def cognitive_run(body: CognitiveTask, _: None = Depends(require_token)):
+        return _loops().run(body)
+
+    @app.post(f"{pref}/cognition/validation-suites")
+    def cognitive_suite(body: ValidationSuite, _: None = Depends(require_token)):
+        return _loops().register_suite(body)
+
+    @app.post(f"{pref}/cognition/tasks/{{run_id}}/feedback")
+    def cognitive_result(run_id: str, body: TaskFeedback, _: None = Depends(require_token)):
+        return _loops().record_result(run_id, body)
+
+    @app.post(f"{pref}/cognition/learning-updates")
+    def cognitive_propose(body: LearningProposal, _: None = Depends(require_token)):
+        return _loops().propose(body)
+
+    @app.get(f"{pref}/cognition/learning-updates/{{update_id}}")
+    def cognitive_update_get(update_id: str, _: None = Depends(require_token)):
+        item = _loops().get_update(update_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="not_found")
+        return item
+
+    @app.post(f"{pref}/cognition/learning-updates/{{update_id}}/evaluate")
+    def cognitive_evaluate(update_id: str, _: None = Depends(require_token)):
+        return _loops().evaluate(update_id)
+
+    @app.post(f"{pref}/cognition/learning-updates/{{update_id}}/apply")
+    def cognitive_apply(update_id: str, confirm: bool = False, _: None = Depends(require_token)):
+        return _loops().apply(update_id, confirm=confirm)
+
+    @app.post(f"{pref}/cognition/learning-updates/{{update_id}}/rollback")
+    def cognitive_rollback(update_id: str, confirm: bool = False, _: None = Depends(require_token)):
+        return _loops().rollback(update_id, confirm=confirm)
+
+    @app.post(f"{pref}/cognition/profile-hypotheses")
+    def cognitive_profile(body: ProfileHypothesis, _: None = Depends(require_token)):
+        return _loops().record_profile(body)
 
     return app

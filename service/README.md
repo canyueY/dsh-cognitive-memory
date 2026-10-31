@@ -1,4 +1,8 @@
-# Mnemosyne Node 3.0
+# Mnemosyne Node 2.0
+
+2026-11-01：[重构理论实现与验证](docs/2.0/THEORY_IMPLEMENTATION_2026_11_01.md)。新增有界任务、固定验收、规则采用／回滚和画像假设接口；好评／自评不再作为事实晋升依据。可用 `scripts/verify_theory_loops.py` 在临时 Bank 重现完整闭环。
+
+2026-10-31 的实现补全与验收见 [三笔记实现补全报告](docs/2.0/AUDIT_REMEDIATION_2026_10_31.md)。新增 [Bootstrap Manifest](manifest/mnemosyne.manifest.json)、[JSON Schema](manifest/schema.json) 和 [onboarding Skill](src/cognitive_memory/resources/onboarding/SKILL.md)。生产迁移和联邦边界以报告为准。
 
 ### Modular Evolving Memory Infrastructure for AI Agents
 
@@ -10,8 +14,8 @@ Mnemosyne 是一个面向 AI Agent 的模块化记忆基础设施。
 
 它为 AI Agent 和其他智能应用提供一套独立、持久、可治理、可演化的认知能力，让它们能够积累经验、形成记忆、理解关系、检索过去、修正认知，并在时间中持续学习。
 
-> **3.0 Node：** 本目录是 [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 的独立 Node / Core。  
-> 根目录还包含 DSH 插件适配层；旧 0.2 插件归档在 `../legacy/dsh-plugin/`。  
+> **2.0 Node：** 本目录是 [`canyueY/dsh-mnemosyne`](https://github.com/canyueY/dsh-mnemosyne) 的独立 Node / Core。
+> 根目录还包含 DSH 插件适配层；旧 0.2 插件归档在 `../legacy/dsh-plugin/`。
 > 基线、GA 与完整文档见 [`docs/REPO_BASELINE.md`](docs/REPO_BASELINE.md)。
 
 > **关键边界：一个 Node 一个 Memory Bank；`mnemosyne-memory-bank` 不是第二套记忆库。**
@@ -269,7 +273,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
 
 ### 2.8 最终定位
 
-> **Mnemosyne 是个人认知基础设施，也是个人长期认知的权威管理层。**  
+> **Mnemosyne 是个人认知基础设施，也是个人长期认知的权威管理层。**
 > 它不要求取代所有外部记忆系统，而是通过开放协议连接、整合和治理它们，使个人认知能够跨 Agent、跨应用、跨时间持续积累与演化。
 
 **Mnemosyne 不是要成为世界上唯一的记忆库，而是要成为用户自己的认知中心。**
@@ -290,7 +294,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
 | Adapter / Plugin | 外部系统接入适配器 | 扩展和集成方式 |
 | SDK / API / MCP | 外部调用接口 | 互操作入口 |
 
-> **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**  
+> **Mnemosyne ≠ Mnemosyne Node ≠ Memory Bank。**
 > Mnemosyne 是整套基础设施；Node 是一次独立运行实例；Memory Bank 是 Node 内部的逻辑记忆空间。
 
 ### 2.10 运行时边界：一个 Node，一个 Memory Bank
@@ -328,7 +332,7 @@ Evidence · Memory · Relationship · Recall · Learning · Governance
             └─ knowledge
 ```
 
-> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**  
+> **`mnemosyne` 有记忆库，`mnemosyne-memory-bank` 没有独立记忆库。**
 > 两者逻辑上重合、可以关联，但不应该各自维护一套数据库。
 
 
@@ -404,7 +408,7 @@ Mnemosyne 不把所有反馈混为一谈。
 | --- | --- | ---: |
 | `user_explicit` | 用户明确表达的评价或纠正 | 0.10 |
 | `outcome` | 实际行为结果 | 0.06 |
-| `self_eval` | Agent 自我评估 | 0.02 | 
+| `self_eval` | Agent 自我评估 | 0.02 |
 
 三种信号具有不同的证据意义。
 

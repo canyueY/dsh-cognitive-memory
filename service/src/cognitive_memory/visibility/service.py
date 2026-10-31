@@ -52,7 +52,7 @@ def evaluate_visibility(
             existence_disclosed=False,
         )
 
-    whitelist = set(field_whitelist or (DEFAULT_PUBLIC_FIELDS | CLAIM_SENSITIVE_FIELDS))
+    whitelist = set(DEFAULT_PUBLIC_FIELDS | CLAIM_SENSITIVE_FIELDS) if field_whitelist is None else set(field_whitelist)
     visible: list[str] = []
     denied: list[str] = []
     for f in req_fields:
@@ -60,7 +60,7 @@ def evaluate_visibility(
             denied.append(f)
             reasons.append(f"field_not_whitelisted:{f}")
             continue
-        if f in ("verification_status", "evidence_refs", "justifications") and not evidence_visible:
+        if f in ("verification_status", "lifecycle_status", "evidence_refs", "justifications") and not evidence_visible:
             # Claim body may be visible; Verified mark must not leak without Evidence
             denied.append(f)
             reasons.append("evidence_invisible_blocks_verification_disclosure")

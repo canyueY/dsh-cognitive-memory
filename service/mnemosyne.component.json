@@ -1,7 +1,7 @@
 {
   "component_id": "mnemosyne.core-node",
   "name": "Mnemosyne Cognitive Node",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "type": "provider",
   "provider": "official",
   "interfaces": {
@@ -32,7 +32,7 @@
     "system"
   ],
   "compatibility": {
-    "mnemosyne": ">=3.0.0"
+    "mnemosyne": ">=2.0.0"
   },
   "lifecycle": {
     "health_check": true,

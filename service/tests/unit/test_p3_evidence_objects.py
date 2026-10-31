@@ -91,15 +91,19 @@ class EvidenceObjectTests(unittest.TestCase):
         cid = prop["claim_id"]
         # Two refs sharing root → same independence_key after materialize
         a = self.estore.create(
-            source_type="observation",
+            source_type="test_fixture",
             source_ref="obs_x1",
+            validation_state="valid", provenance_status="complete",
+            chain=[{"step":"fixture","ref":"obs_x1"}],
             producer="same",
             root_source_id="root_r",
             content_for_fingerprint="a",
         )
         b = self.estore.create(
-            source_type="observation",
+            source_type="test_fixture",
             source_ref="obs_x2",
+            validation_state="valid", provenance_status="complete",
+            chain=[{"step":"fixture","ref":"obs_x2"}],
             producer="same",
             root_source_id="root_r",
             content_for_fingerprint="b",

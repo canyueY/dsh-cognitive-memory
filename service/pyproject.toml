@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mnemosyne"
-version = "3.0.0"
-description = "Mnemosyne 3.0 — Personal Cognitive Infrastructure Node (merged Node + DSH plugin repository)"
+version = "2.0.0"
+description = "Mnemosyne 2.0 — Personal Cognitive Infrastructure Node (merged Node + DSH plugin repository)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
@@ -35,6 +35,9 @@ Repository = "https://github.com/canyueY/dsh-mnemosyne"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+cognitive_memory = ["resources/*.json", "resources/onboarding/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

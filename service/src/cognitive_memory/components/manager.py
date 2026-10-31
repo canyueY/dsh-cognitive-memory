@@ -286,12 +286,14 @@ class ComponentManager:
         auth_info: dict[str, Any] | None = None
         if authorize:
             auth_info = self.authorize(m.component_id)
+        domain_pack_result = self._queue_or_note_domain_packs(dest, m)
         self._save()
         return {
             "ok": True,
             "component": rec.to_dict(),
             "authorized": bool(authorize),
             "authorization": auth_info,
+            "domain_packs": domain_pack_result,
             "note": "install ≠ authorize" if not authorize else "authorized_on_install",
         }
 
@@ -403,6 +405,51 @@ class ComponentManager:
             rec.error = "health_failed"
         self._save()
         return report
+
+    def _domain_pack_paths(self, install_dir: Path, manifest: FullComponentManifest) -> list[Path]:
+        raw = dict(manifest.raw or {})
+        meta = dict(manifest.metadata or {})
+        ext = meta.get("extensions") if isinstance(meta.get("extensions"), dict) else {}
+        listed = raw.get("domain_packs") or meta.get("domain_packs") or ext.get("domain_packs") or []
+        if isinstance(listed, str):
+            listed = [listed]
+        out: list[Path] = []
+        for item in listed:
+            rel = str(item or "").strip()
+            if not rel:
+                continue
+            cand = (install_dir / rel).resolve()
+            if cand.is_relative_to(install_dir.resolve()) and cand.is_file():
+                out.append(cand)
+        return out
+
+    def _queue_or_note_domain_packs(
+        self, install_dir: Path, manifest: FullComponentManifest
+    ) -> dict[str, Any]:
+        """Install-time: queue domain packs for MemoryService registration (ontology only)."""
+        paths = self._domain_pack_paths(install_dir, manifest)
+        if not paths:
+            return {"queued": [], "note": "no_domain_packs"}
+        queued: list[str] = []
+        try:
+            from cognitive_memory.domains.registrar import queue_pending_domain_pack
+        except Exception as exc:  # noqa: BLE001
+            return {"queued": [], "error": f"registrar_unavailable:{exc}"}
+        for p in paths:
+            try:
+                dest = queue_pending_domain_pack(self.data_dir, p)
+                queued.append(str(dest))
+            except Exception as exc:  # noqa: BLE001
+                return {"queued": queued, "error": str(exc), "failed": str(p)}
+        return {
+            "queued": queued,
+            "note": "pending_until_domains_register; ontology_only_no_user_data",
+        }
+
+    def apply_pending_domain_packs(self, service: Any) -> list[dict[str, Any]]:
+        from cognitive_memory.domains.registrar import drain_pending_domain_packs
+
+        return drain_pending_domain_packs(service, self.data_dir)
 
     def remove(self, component_id: str, *, purge: bool = True) -> dict[str, Any]:
         rec = self._records.get(component_id)

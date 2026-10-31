@@ -64,6 +64,7 @@ def run_retrieve(
     ab_subject_key: str = "",
     token_budget: int | None = None,
     types: list | None = None,
+    domain: str | None = None,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
     plan = plan_retrieval(
@@ -74,6 +75,7 @@ def run_retrieve(
     )
     trace: dict[str, Any] = {
         "plan": plan.to_dict(),
+        "domain": domain,
         "channels": [],
         "deepened": False,
         "error": None,
@@ -117,6 +119,7 @@ def run_retrieve(
                 mode=plan.mode,
                 spatiotemporal_rerank=spatiotemporal_rerank,
                 emotion_rerank=emotion_rerank,
+                domain=domain,
             )
         )
         trace["channels"].append({"name": "fts_like", "raw_hits": len(hits)})
@@ -133,6 +136,7 @@ def run_retrieve(
                     mode="any",
                     spatiotemporal_rerank=spatiotemporal_rerank,
                     emotion_rerank=emotion_rerank,
+                domain=domain,
                 )
             )
             trace["deepened"] = True
@@ -158,6 +162,9 @@ def run_retrieve(
                     "score": sc,
                     "metadata": m.metadata,
                     "authoritative": True,
+                    "authority_scope": "local_record_only",
+                    "truth_status": "unverified_record",
+                    "score_kind": "retrieval_ranking_not_probability",
                 }
             )
 
@@ -197,6 +204,7 @@ def run_retrieve(
                 mode=plan.mode,
                 spatiotemporal_rerank=spatiotemporal_rerank,
                 emotion_rerank=emotion_rerank,
+                domain=domain,
             )
         )
 

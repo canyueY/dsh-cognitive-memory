@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from tests.support import seed_evidence
 from pathlib import Path
 
 from cognitive_memory.claims.store import ClaimStore
@@ -17,6 +18,8 @@ class ClaimStoreTests(unittest.TestCase):
         self.db = Database(Path(self.tmp.name) / "memory.db")
         self.db.ensure_schema()
         self.store = ClaimStore(self.db)
+        seed_evidence(self.db, 'obs_1')
+        seed_evidence(self.db, 'obs_v1')
 
     def tearDown(self) -> None:
         self.db.close()

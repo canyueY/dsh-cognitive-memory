@@ -21,6 +21,20 @@ class TmsStore:
         self.db = db
         self.db.ensure_schema()
         self.engine = TruthMaintenanceEngine()
+        with db.exclusive() as conn:
+            for row in conn.execute("SELECT * FROM tms_justifications"):
+                just = Justification(
+                    justification_id=row["id"], conclusion_id=row["conclusion_id"],
+                    premises=json.loads(row["premises_json"]), kind=row["kind"],
+                    valid=bool(row["valid"]), reason=row["reason"], actor=row["actor"],
+                    metadata=json.loads(row["metadata_json"] or "{}"),
+                )
+                self.engine._justifications[just.justification_id] = just
+                self.engine._by_conclusion[just.conclusion_id].append(just.justification_id)
+                for premise in just.premises:
+                    self.engine._by_premise[premise].append(just.justification_id)
+            for row in conn.execute("SELECT * FROM tms_beliefs"):
+                self.engine._belief[row["node_id"]] = BeliefStatus(row["status"])
 
     def persist_justification(self, just: Justification) -> None:
         now = _now()
@@ -101,7 +115,7 @@ class TmsStore:
         bel = self.engine.belief(conclusion_id)
         self.persist_belief(conclusion_id, bel.status, bel.reason_codes)
         return {
-            "ok": True,
+            "ok": prop.ok,
             "justification": just.model_dump(mode="json"),
             "belief": bel.model_dump(mode="json"),
             "propagate": prop.model_dump(mode="json"),
@@ -114,8 +128,6 @@ class TmsStore:
                 "SELECT status, reason_codes_json FROM tms_beliefs WHERE node_id=?",
                 (node_id,),
             ).fetchone()
-            if conn.in_transaction:
-                conn.commit()
         if row:
             try:
                 codes = json.loads(row["reason_codes_json"] or "[]")

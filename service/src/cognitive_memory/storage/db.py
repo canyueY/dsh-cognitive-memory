@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from .migrations import apply_migrations
+from .migrations import apply_migrations, MIGRATIONS
 
 
 class Database:
@@ -27,13 +28,30 @@ class Database:
                 self._conn.row_factory = sqlite3.Row
                 self._conn.execute("PRAGMA journal_mode=WAL")
                 self._conn.execute("PRAGMA foreign_keys=ON")
+                self._conn.execute("PRAGMA temp_store=MEMORY")
             return self._conn
 
     def ensure_schema(self) -> list[str]:
         with self._lock:
             if self._initialized:
                 return []
-            done = apply_migrations(self.connect())
+            conn = self.connect()
+            tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            applied = {r[0] for r in conn.execute("SELECT id FROM schema_migrations")} if "schema_migrations" in tables else set()
+            pending = [mid for mid, _ in MIGRATIONS if mid not in applied]
+            if pending and tables:
+                if conn.in_transaction:
+                    raise RuntimeError("schema_upgrade_requires_standalone_transaction")
+                backups = self.path.parent / "migration-backups"
+                backups.mkdir(exist_ok=True)
+                dest = sqlite3.connect(backups / f"before-{pending[0]}-{uuid.uuid4().hex}.db")
+                try:
+                    conn.backup(dest)
+                    if dest.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                        raise RuntimeError("pre_migration_backup_invalid")
+                finally:
+                    dest.close()
+            done = apply_migrations(conn)
             self._initialized = True
             return done
 
@@ -55,9 +73,19 @@ class Database:
     def transaction(self) -> Iterator[sqlite3.Connection]:
         with self._lock:
             conn = self.connect()
+            nested = conn.in_transaction
+            savepoint = "sp_" + uuid.uuid4().hex
+            conn.execute(f"SAVEPOINT {savepoint}" if nested else "BEGIN IMMEDIATE")
             try:
                 yield conn
-                conn.commit()
+                if nested:
+                    conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+                else:
+                    conn.commit()
             except Exception:
-                conn.rollback()
+                if nested:
+                    conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+                else:
+                    conn.rollback()
                 raise

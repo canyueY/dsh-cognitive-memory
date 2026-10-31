@@ -39,6 +39,9 @@ def coerce_long_term_status(
         return status, meta
     if st != "active":
         return status, meta
+    if meta.get("epistemic") in {"inference", "inferred_signal", "summary", "generated"}:
+        meta["promotion_guard"] = {"coerced_from": "active", "reason": "hypothesis_not_observation"}
+        return "candidate", meta
     sources = [s for s in (source_ids or []) if s]
     if sources:
         return status, meta

@@ -128,16 +128,20 @@ def run_fault_pipeline(
     }
     faults.append_stage(fid, FaultStage.DIFF_TRACE.value, payload=diff, ok=True)
 
+    from cognitive_memory.fault.validation import snapshot_database, reproduce, replay_repair, regression_suite
+    snapshot = snapshot_database(db)
+    reproduction = reproduce(snapshot, claim_id, code)
     repro = {
+        **reproduction,
         "steps": [
             f"load_claim:{claim_id}",
             f"expect_invariant_ok",
             f"observed:{code}",
         ],
-        "minimal": True,
+        "minimal": bool(reproduction["ok"]),
         "fixture_claim_id": claim_id,
     }
-    faults.append_stage(fid, FaultStage.MIN_REPRO.value, payload=repro, ok=True)
+    faults.append_stage(fid, FaultStage.MIN_REPRO.value, payload=repro, ok=reproduction["ok"])
 
     root = {
         "candidate": code,
@@ -178,18 +182,19 @@ def run_fault_pipeline(
         )
 
         if run_regression:
-            # Lightweight regression: re-run same invariant helper on subject
+            regression = regression_suite()
             faults.append_stage(
                 fid,
                 FaultStage.REGRESSION.value,
-                payload={"passed": bool(inv2.get("ok")), "suite": "claim_invariants"},
-                ok=bool(inv2.get("ok")),
+                payload=regression,
+                ok=regression["passed"],
             )
+            replay = replay_repair(snapshot, claim_id, code, claim2 or {})
             faults.append_stage(
                 fid,
                 FaultStage.REPLAY.value,
-                payload={"replayed_events": len(events), "note": "lifecycle_events_replay_readonly"},
-                ok=True,
+                payload=replay,
+                ok=replay["ok"],
             )
             # Rollback drill: plan always; execute when execute_rollback=True
             rb = rollback_fault_repair(
@@ -219,9 +224,10 @@ def run_fault_pipeline(
         if execute_rollback:
             # Drill ended in rollback; keep ROLLED_BACK even if patch had validated.
             faults.set_status(fid, FaultStatus.ROLLED_BACK.value)
-        elif inv2.get("ok"):
+        elif inv2.get("ok") and reproduction["ok"] and run_regression and regression["passed"] and replay["ok"] and rb.get("ok"):
             faults.set_status(fid, FaultStatus.VALIDATED.value)
 
+    snapshot.close()
     return {
         "ok": True,
         "fault_id": fid,

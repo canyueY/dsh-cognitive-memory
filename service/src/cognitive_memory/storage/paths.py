@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import sqlite3
+import uuid
 from pathlib import Path
 
 # 对外显示名 / 默认文件夹名（与代码仓 mnemosyne/ 分离）
@@ -120,8 +122,23 @@ def copy_memory_bank(
     dst = target.expanduser().resolve()
     if src == dst:
         return {"ok": False, "error": "source_equals_target", "source": str(src), "target": str(dst)}
+    if src.is_relative_to(dst) or dst.is_relative_to(src):
+        return {"ok":False,"error":"overlapping_source_and_target"}
+    from cognitive_memory.onboarding import node_running
+    if node_running(dst):
+        return {"ok":False,"error":"target_node_running"}
     if not (src / "data" / "memory.db").is_file() and not (src / "memory.db").is_file():
         return {"ok": False, "error": "source_db_missing", "source": str(src)}
+    source_db=src/"data/memory.db" if (src/"data/memory.db").is_file() else src/"memory.db"
+    try:
+        check=sqlite3.connect(source_db.as_uri()+"?mode=ro",uri=True)
+        try:
+            if check.execute("PRAGMA integrity_check").fetchone()[0]!="ok":
+                return {"ok":False,"error":"source_db_invalid"}
+        finally:
+            check.close()
+    except sqlite3.DatabaseError:
+        return {"ok":False,"error":"source_db_invalid"}
     if dst.exists() and any(dst.iterdir()) and not overwrite:
         # 允许目标仅有空 layout / README
         meaningful = [
@@ -137,30 +154,49 @@ def copy_memory_bank(
                 "hint": "pass overwrite=True or choose empty target",
             }
     dst.mkdir(parents=True, exist_ok=True)
+    target_db = dst / "data" / "memory.db"
+    if target_db.is_file() and overwrite:
+        backup_dir = dst / "backups"
+        backup_dir.mkdir(exist_ok=True)
+        previous = sqlite3.connect(target_db.as_uri()+"?mode=ro",uri=True)
+        backup = sqlite3.connect(backup_dir / f"before-bank-copy-{uuid.uuid4().hex}.db")
+        try:
+            previous.backup(backup)
+        finally:
+            previous.close()
+            backup.close()
     copied: list[str] = []
-    for name in ("data", "runtime", "logs", "cache", "components"):
+    for name in ("data", "logs", "components"):
         s = src / name
         if not s.exists():
             continue
         d = dst / name
-        if d.exists():
-            if overwrite:
-                shutil.rmtree(d, ignore_errors=True)
-            else:
-                continue
-        shutil.copytree(s, d)
+        shutil.copytree(s, d, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("memory.db","memory.db-wal","memory.db-shm"))
         copied.append(name)
     # 根级零散文件
     for item in src.iterdir():
         if item.name in {"data", "runtime", "logs", "cache", "components"}:
             continue
-        if item.is_file():
+        if item.is_file() and item.name not in {"memory.db","memory.db-wal","memory.db-shm"}:
             dest_f = dst / item.name
             if dest_f.exists() and not overwrite:
                 continue
             shutil.copy2(item, dest_f)
             copied.append(item.name)
     ensure_layout(dst)
+    source_db = src / "data" / "memory.db"
+    if not source_db.is_file():
+        source_db = src / "memory.db"
+    original = sqlite3.connect(source_db.as_uri()+"?mode=ro",uri=True)
+    snapshot = sqlite3.connect(target_db)
+    try:
+        original.backup(snapshot)
+        if snapshot.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            return {"ok":False,"error":"copied_database_integrity_failed"}
+    finally:
+        original.close()
+        snapshot.close()
     # 标记源为已迁出归档提示
     marker = src / "MIGRATED_TO_MNEMOSYNE_MEMORY_BANK.txt"
     try:

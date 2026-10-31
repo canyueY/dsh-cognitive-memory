@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import secrets
+import time
 from collections import defaultdict, deque
 from typing import Any
 
@@ -172,7 +173,7 @@ class TruthMaintenanceEngine:
         edges = self._dependency_edges()
         marked: list[str] = []
         for comp in strongly_connected_components(nodes, edges):
-            if len(comp) < 2:
+            if len(comp) < 2 and not any(n in edges.get(n,set()) for n in comp):
                 continue
             # cycle without external premise support → UNKNOWN
             external = False
@@ -200,16 +201,18 @@ class TruthMaintenanceEngine:
         *,
         max_nodes: int | None = None,
         max_depth: int | None = None,
+        max_elapsed_ms: float = 1000,
     ) -> PropagateResult:
-        budget = max_nodes or self.max_nodes
-        depth_lim = max_depth or self.max_depth
+        budget = self.max_nodes if max_nodes is None else max(0,max_nodes)
+        depth_lim = self.max_depth if max_depth is None else max(0,max_depth)
+        started = time.perf_counter()
         q: deque[tuple[str, int]] = deque((s, 0) for s in seed_ids)
         visited: set[str] = set()
         changed: list[dict[str, Any]] = []
         exhausted = False
 
         while q:
-            if len(visited) >= budget:
+            if len(visited) >= budget or (time.perf_counter()-started)*1000 >= max_elapsed_ms:
                 exhausted = True
                 break
             node_id, depth = q.popleft()
@@ -236,14 +239,18 @@ class TruthMaintenanceEngine:
                     if dep not in visited:
                         q.append((dep, depth + 1))
 
-        scc_unknown = self.mark_scc_unknown()
+        if len(self._belief)>budget or (time.perf_counter()-started)*1000>=max_elapsed_ms:
+            exhausted=True
+            scc_unknown=[]
+        else:
+            scc_unknown = self.mark_scc_unknown()
         reasons = []
         if exhausted:
-            reasons.append("budget_exhausted")
+            reasons.append("budget_exceeded")
         if scc_unknown:
             reasons.append("scc_marked_unknown")
         return PropagateResult(
-            ok=True,
+            ok=not exhausted,
             changed=changed,
             visited=len(visited),
             budget_exhausted=exhausted,

@@ -92,11 +92,12 @@ class EmotionFeedbackBankE2ETests(unittest.TestCase):
             FeedbackIn(memory_id=mem.id, useful=True, note="y4-ok", producer="y4-e2e")
         )
         self.assertTrue(fb.get("ok"))
-        self.assertTrue(fb.get("promoted"))
+        self.assertFalse(fb.get("promoted"))
+        self.assertEqual(fb["useful_feedback_count"], 1)
         got = self.ctx.service.get_memory(mem.id)
         status = got.get("status") if isinstance(got, dict) else getattr(got, "status", None)
         status_s = str(getattr(status, "value", None) or status).lower()
-        self.assertEqual(status_s, "active")
+        self.assertEqual(status_s, "candidate")
 
         # HTTP 面：emotion candidates + banks
         banks = self.http.get("/api/v1/banks", headers=self.h)

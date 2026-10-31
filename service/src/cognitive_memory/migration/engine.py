@@ -149,6 +149,7 @@ class MemoryMigrationEngine:
                     "observation_id": result.observation_id,
                     "memory_id": result.memory_id,
                     "dry_run": result.dry_run,
+                    "created": result.created,
                 }
             )
             if checkpoint and not self.config.dry_run:

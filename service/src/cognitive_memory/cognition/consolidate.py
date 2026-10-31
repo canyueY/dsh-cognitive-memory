@@ -47,7 +47,9 @@ def consolidate_observation(service: MemoryService, observation_id: str) -> str 
         mem_type = MemoryType.EPISODIC
         status = MemoryStatus.CANDIDATE
 
-    meta: dict = {"consolidation": "rule_v1", "source_kind": kind}
+    meta: dict = {"consolidation": "rule_v1", "source_kind": kind,
+                  "epistemic": "summary", "original_observation_id": observation_id,
+                  "lossy": len(content) > (400 if kind in (SourceKind.DIALOG.value, SourceKind.USER_STATEMENT.value) else 500)}
     try:
         raw_meta = json.loads(row["metadata_json"] or "{}")
         st = raw_meta.get("spatiotemporal") if isinstance(raw_meta, dict) else None

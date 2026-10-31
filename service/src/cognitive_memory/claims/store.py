@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import json
 import uuid
+from functools import wraps
 from datetime import datetime, timezone
 from typing import Any
 
 from cognitive_memory.claims.ast import ClaimAST
 from cognitive_memory.claims.lifecycle import ClaimLifecycle, ClaimLifecycleEngine
-from cognitive_memory.claims.normalize import normalized_hash
-from cognitive_memory.claims.parser import parse_memory_text
+from cognitive_memory.claims.normalize import normalized_hash, NORMALIZATION_VERSION
+from cognitive_memory.claims.parser import parse_memory_text, PARSER_VERSION
 from cognitive_memory.security.context import SecurityContext
 from cognitive_memory.storage.db import Database
 from cognitive_memory.tracing.service import JudgmentTraceService
@@ -31,6 +32,26 @@ def _new_id(prefix: str = "clm") -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
+class _RejectedMutation(Exception):
+    def __init__(self, result):
+        self.result = result
+
+
+def atomic_mutation(fn):
+    """Serialize read/check/write; a rejected operation cannot partially commit."""
+    @wraps(fn)
+    def wrapped(self, *args, **kwargs):
+        try:
+            with self.db.transaction():
+                result = fn(self, *args, **kwargs)
+                if isinstance(result, dict) and result.get("ok") is False:
+                    raise _RejectedMutation(result)
+                return result
+        except _RejectedMutation as exc:
+            return exc.result
+    return wrapped
+
+
 class ClaimStore:
     def __init__(self, db: Database) -> None:
         self.db = db
@@ -38,7 +59,7 @@ class ClaimStore:
         self._life = ClaimLifecycleEngine()
         self._ver_engine = VerificationEngine()
         self._ver_store = PersistentVerificationStore(db)
-        self.traces = JudgmentTraceService()
+        self.traces = JudgmentTraceService(db)
         self.tms = TmsStore(db)
 
     def _record_trace(
@@ -108,6 +129,7 @@ class ClaimStore:
             )
         return did
 
+    @atomic_mutation
     def propose_from_text(
         self,
         text: str,
@@ -122,8 +144,12 @@ class ClaimStore:
         """Parse → normalize → persist Claim (lifecycle=proposed). Never verified."""
         parsed = parse_memory_text(text)
         ast: ClaimAST = parsed.ast
+        if validity_from or validity_to:
+            ast = ast.model_copy(update={"scope": {**ast.scope, "validity": {"from": validity_from, "to": validity_to}}})
         if scope:
             merged_scope = {**(ast.scope or {}), **dict(scope)}
+            if validity_from or validity_to:
+                merged_scope["validity"] = {"from": validity_from, "to": validity_to}
             ast = ast.model_copy(update={"scope": merged_scope})
         if ast.is_unresolved() and not persist_unresolved:
             return {
@@ -176,8 +202,8 @@ class ClaimStore:
                 INSERT INTO claims(
                   id, bank_id, ast_version, ast_json, surface, normalized_hash,
                   lifecycle, verification_status, scope_json, source_memory_id,
-                  redirects_to, created_at, updated_at, validity_from, validity_to
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  redirects_to, created_at, updated_at, validity_from, validity_to, normalization_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     row["id"],
@@ -195,8 +221,10 @@ class ClaimStore:
                     row["updated_at"],
                     row["validity_from"],
                     row["validity_to"],
+                    NORMALIZATION_VERSION,
                 ),
             )
+            conn.execute("UPDATE claims SET parser_version=? WHERE id=?", (PARSER_VERSION, cid))
             conn.execute(
                 """
                 INSERT INTO claim_lifecycle_events(
@@ -253,15 +281,45 @@ class ClaimStore:
         follow_redirect: bool = True,
         principal: SecurityContext | None = None,
         evidence_visible: bool = True,
+        _visited: frozenset[str] = frozenset(),
     ) -> dict[str, Any] | None:
+        if claim_id in _visited or len(_visited)>=32:
+            return None
+        _visited = _visited | {claim_id}
         with self.db.exclusive() as conn:
+            if principal is not None:
+                meta=conn.execute("SELECT bank_id FROM claims WHERE id=?",(claim_id,)).fetchone()
+                if meta is None or not principal.allows_bank(meta[0]) or not principal.allows_purpose("retrieve"):
+                    return None
             row = conn.execute("SELECT * FROM claims WHERE id=?", (claim_id,)).fetchone()
-            if conn.in_transaction:
-                conn.commit()
         if not row:
             return None
         pack = self._row_to_dict(row)
+        if principal is not None and pack["verification_status"] == "verified":
+            rec = self._ver_store.latest_for_claim(claim_id)
+            from cognitive_memory.verification.assessment import POLICY_VERSION
+            if not rec or rec.policy_version != POLICY_VERSION or rec.status != VerificationStatus.VERIFIED:
+                pack["verification_status"] = "revalidate_required"
+                if pack["lifecycle"] == "verified":
+                    pack["lifecycle"] = "supported"
+            elif rec.valid_until and rec.valid_until <= _now():
+                pack["verification_status"] = "expired"
+                pack["lifecycle"] = "expired"
         if principal is not None:
+            from cognitive_memory.evidence.object_store import EvidenceObjectStore
+            refs = [e["evidence_ref"] for e in self.list_evidence(claim_id)]
+            rec = self._ver_store.latest_for_claim(claim_id)
+            if rec:
+                refs.extend(rec.evidence_refs)
+            for ref in set(refs):
+                ev = EvidenceObjectStore(self.db).get(ref)
+                sec = (ev or {}).get("security") or {}
+                if (not ev or not principal.allows_bank(ev["bank_id"])
+                        or (sec.get("owner_id") and sec["owner_id"] != principal.owner_id
+                            and not set(sec.get("authorized_grants", [])) & set(principal.authorized_grants))
+                        or (sec.get("purpose_constraints") and "retrieve" not in sec["purpose_constraints"])):
+                    evidence_visible = False
+                    break
             vis = evaluate_visibility(
                 principal,
                 object_ref=claim_id,
@@ -286,6 +344,7 @@ class ClaimStore:
                 follow_redirect=True,
                 principal=principal,
                 evidence_visible=evidence_visible,
+                _visited=_visited,
             )
             if target:
                 pack["redirect_resolved"] = target
@@ -328,10 +387,21 @@ class ClaimStore:
                 """,
                 (normalized_hash_value, bank_id),
             ).fetchone()
-            if conn.in_transaction:
-                conn.commit()
-        return self._row_to_dict(row) if row else None
+        if row:
+            return self._row_to_dict(row)
+        # Compare immutable legacy ASTs under the new rules without rewriting old hashes/IDs.
+        with self.db.exclusive() as conn:
+            legacy=conn.execute(
+                "SELECT * FROM claims WHERE bank_id=? AND redirects_to IS NULL AND normalization_version!=?",
+                (bank_id,NORMALIZATION_VERSION),
+            ).fetchall()
+        for old in legacy:
+            ast=ClaimAST.model_validate_json(old["ast_json"])
+            if normalized_hash(ast)==normalized_hash_value:
+                return self._row_to_dict(old)
+        return None
 
+    @atomic_mutation
     def attach_evidence(
         self,
         claim_id: str,
@@ -345,6 +415,8 @@ class ClaimStore:
         claim = self.get(claim_id, follow_redirect=False)
         if not claim:
             return {"ok": False, "detail": "claim_not_found"}
+        if role not in {"support","counter","contradicts","qualifies"}:
+            return {"ok":False,"detail":"invalid_evidence_role"}
         evidence_object_id: str | None = None
         if materialize_evidence_object and evidence_ref:
             from cognitive_memory.evidence.object_store import EvidenceObjectStore
@@ -353,6 +425,10 @@ class ClaimStore:
             # Prefer explicit Evidence id; else treat ref as observation source
             if str(evidence_ref).startswith("evd_"):
                 existing = estore.get(str(evidence_ref))
+                if existing is None:
+                    return {"ok":False,"detail":"evidence_missing"}
+                if existing["bank_id"]!=claim["bank_id"]:
+                    return {"ok":False,"detail":"evidence_scope_denied"}
                 evidence_object_id = existing["id"] if existing else None
             else:
                 created = estore.create_from_observation(
@@ -383,6 +459,9 @@ class ClaimStore:
             evidence_refs=[evidence_ref],
             reason_codes=[role],
         )
+        if role in {"counter","contradicts"} and claim["lifecycle"] in {"verified","supported","qualified"}:
+            self.transition(claim_id,"disputed",reason="counterevidence_attached",actor="evidence_service",
+                            evidence_refs=[evidence_ref])
         return {
             "ok": True,
             "link_id": eid,
@@ -399,8 +478,6 @@ class ClaimStore:
                 "SELECT * FROM claim_evidence WHERE claim_id=? ORDER BY created_at",
                 (claim_id,),
             ).fetchall()
-            if conn.in_transaction:
-                conn.commit()
         return [
             {
                 "id": r["id"],
@@ -413,6 +490,7 @@ class ClaimStore:
             for r in rows
         ]
 
+    @atomic_mutation
     def transition(
         self,
         claim_id: str,
@@ -424,10 +502,19 @@ class ClaimStore:
         replacement_claim_id: str | None = None,
         confidence: float | None = None,
         decision_at: str | None = None,
+        expected_version: int | None = None,
     ) -> dict[str, Any]:
+        if str(getattr(target_status, "value", target_status)) == "verified":
+            return self.submit_verified(claim_id, evidence_refs=list(evidence_refs or []), actor=actor,
+                                        expected_version=expected_version)
         claim = self.get(claim_id, follow_redirect=False)
         if not claim:
             return {"ok": False, "detail": "claim_not_found"}
+        if expected_version is not None and expected_version!=claim["version"]:
+            return {"ok":False,"detail":"version_conflict"}
+        if str(getattr(target_status,"value",target_status))==claim["lifecycle"]:
+            return {"ok":True,"claim_id":claim_id,"idempotent":True,"claim":claim,
+                    "from_status":claim["lifecycle"],"to_status":claim["lifecycle"]}
         if claim.get("redirects_to"):
             return {"ok": False, "detail": "claim_redirected", "redirects_to": claim["redirects_to"]}
         if replacement_claim_id:
@@ -464,7 +551,7 @@ class ClaimStore:
         )
         did = _new_id("cdec")
         target = result.to_status
-        sets = ["lifecycle=?", "updated_at=?"]
+        sets = ["lifecycle=?", "updated_at=?", "version=version+1"]
         params: list[Any] = [target.value, now]
         if target in (ClaimLifecycle.SUPERSEDED, ClaimLifecycle.RETRACTED, ClaimLifecycle.EXPIRED):
             sets.append("validity_to=COALESCE(validity_to, ?)")
@@ -625,12 +712,10 @@ class ClaimStore:
             rows = conn.execute(
                 """
                 SELECT * FROM claim_decision_records
-                WHERE claim_id=? ORDER BY decision_at DESC LIMIT ?
+                WHERE claim_id=? ORDER BY decision_at DESC, rowid DESC LIMIT ?
                 """,
                 (claim_id, lim),
             ).fetchall()
-            if conn.in_transaction:
-                conn.commit()
         out = []
         for r in rows:
             try:
@@ -654,6 +739,7 @@ class ClaimStore:
             })
         return out
 
+    @atomic_mutation
     def submit_verified(
         self,
         claim_id: str,
@@ -662,6 +748,8 @@ class ClaimStore:
         actor: str,
         authorized: bool = True,
         evidence_still_valid: bool = True,
+        principal: SecurityContext | None = None,
+        expected_version: int | None = None,
     ) -> dict[str, Any]:
         """Sole path to Verified: engine re-check + persist record + lifecycle."""
         claim = self.get(claim_id, follow_redirect=False)
@@ -669,6 +757,29 @@ class ClaimStore:
             return {"ok": False, "detail": "claim_not_found"}
         if claim.get("redirects_to"):
             return {"ok": False, "detail": "claim_redirected"}
+        if not authorized:
+            return {"ok": False, "detail": "not_authorized"}
+        if expected_version is not None and claim["version"] != expected_version:
+            return {"ok": False, "detail": "version_conflict"}
+        if claim["lifecycle"] in {"rejected", "retracted", "superseded", "disputed"}:
+            return {"ok": False, "detail": "illegal_transition"}
+        if claim["ast"].get("root", {}).get("kind") == "unresolved":
+            return {"ok": False, "detail": "unresolved_claim"}
+        from cognitive_memory.verification.assessment import assess_evidence
+        assessment = assess_evidence(self.db, claim, evidence_refs, principal=principal)
+        if not assessment["ok"]:
+            return assessment
+        evidence_refs = assessment["evidence_refs"]
+        if not evidence_still_valid:  # legacy caller may veto, never authorize
+            return {"ok": False, "detail": "evidence_revoked_before_commit"}
+        previous = self._ver_store.latest_for_claim(claim_id)
+        if (claim["verification_status"] == "verified" and previous
+                and previous.evidence_refs == evidence_refs
+                and previous.status == VerificationStatus.VERIFIED
+                and (not previous.valid_until or previous.valid_until > _now())
+                and previous.policy_version == assessment["policy_version"]):
+            return {"ok": True, "claim_id":claim_id, "claim":claim,
+                    "record":previous.model_dump(mode="json"), "idempotent":True}
         # Must be supported/qualified before verified
         life = str(claim.get("lifecycle") or "proposed")
         if life not in ("supported", "qualified", "expired"):
@@ -676,36 +787,26 @@ class ClaimStore:
                 bump = self.transition(claim_id, "supported", reason="pre_verify", actor=actor)
                 if not bump.get("ok"):
                     return {"ok": False, "detail": "cannot_reach_supported", "prior": bump}
+                life = "supported"
+                claim = self.get(claim_id, follow_redirect=False)
         eng = self._ver_engine.submit_verified(
             claim_id=claim_id,
             evidence_refs=evidence_refs,
             actor=actor,
             authorized=authorized,
             evidence_still_valid=evidence_still_valid,
+            claim_version=claim["version"],
+            policy_version=assessment["policy_version"],
+            security_context={
+                "bank_id":claim["bank_id"],"scope":claim["scope"],
+                "verification_policy":assessment["policy_version"],
+                "evidence_snapshots":[self.db.connect().execute(
+                    "SELECT fingerprint,validation_state,provenance_status FROM evidences WHERE id=?",(ref,)
+                ).fetchone()[:] for ref in evidence_refs],
+            },
         )
         if not eng.get("ok"):
             return {"ok": False, "detail": eng.get("error") or "verify_denied", "engine": eng}
-        # P3 gate: multiple evidence refs must not share independence_key
-        if len(evidence_refs) >= 2:
-            from cognitive_memory.evidence.object_store import EvidenceObjectStore
-
-            estore = EvidenceObjectStore(self.db)
-            ev_ids = []
-            for ref in evidence_refs:
-                if str(ref).startswith("evd_"):
-                    ev_ids.append(str(ref))
-                else:
-                    created = estore.create_from_observation(str(ref))
-                    if created.get("ok") and created.get("evidence"):
-                        ev_ids.append(created["evidence"]["id"])
-            indep = estore.independence_conflict(ev_ids)
-            if not indep.get("independent"):
-                return {
-                    "ok": False,
-                    "detail": "evidence_not_independent",
-                    "independence": indep,
-                    "note": "correlated_evidence_blocked_before_verified",
-                }
         from cognitive_memory.verification.models import VerificationRecord
 
         rec_data = eng["record"]
@@ -716,7 +817,7 @@ class ClaimStore:
             conn.execute(
                 """
                 UPDATE claims
-                SET verification_status=?, lifecycle=?, last_confirmed_at=?, updated_at=?
+                SET verification_status=?, lifecycle=?, last_confirmed_at=?, updated_at=?, version=version+1
                 WHERE id=?
                 """,
                 (
@@ -754,6 +855,8 @@ class ClaimStore:
             reason="submit_verified",
             actor=actor,
         )
+        if not tms_pack.get("ok"):
+            return {"ok":False,"detail":"budget_exceeded","tms":tms_pack}
         tid = self._record_trace(
             "claim.verify",
             input_refs=[claim_id],
@@ -784,17 +887,23 @@ class ClaimStore:
             "tms": tms_pack,
         }
 
+    @atomic_mutation
     def redirect(self, source_id: str, target_id: str, *, reason: str = "merge") -> dict[str, Any]:
         src = self.get(source_id, follow_redirect=False)
         tgt = self.get(target_id, follow_redirect=True)
         if not src or not tgt:
             return {"ok": False, "detail": "claim_not_found"}
+        if src["bank_id"] != (tgt.get("redirect_resolved") or tgt)["bank_id"]:
+            return {"ok": False, "detail": "cross_bank_redirect_denied"}
         if tgt.get("redirect_resolved"):
             resolved_target = str(tgt["redirect_resolved"]["id"])
         else:
             resolved_target = str(tgt["id"])
         if source_id == resolved_target:
             return {"ok": False, "detail": "self_redirect"}
+        if src.get("redirects_to")==resolved_target and src["lifecycle"]=="superseded":
+            return {"ok":True,"source_id":source_id,"redirects_to":resolved_target,
+                    "claim":src,"idempotent":True}
         now = _now()
         tid = self._record_trace(
             "claim.redirect",
@@ -808,7 +917,7 @@ class ClaimStore:
             conn.execute(
                 """
                 UPDATE claims SET redirects_to=?, lifecycle=?, updated_at=?,
-                  superseded_at=COALESCE(superseded_at, ?),
+                  version=version+1, superseded_at=COALESCE(superseded_at, ?),
                   superseded_by=?,
                   validity_to=COALESCE(validity_to, ?)
                 WHERE id=?
@@ -872,6 +981,7 @@ class ClaimStore:
             "tms": tms_pack,
         }
 
+    @atomic_mutation
     def merge(
         self,
         source_id: str,
@@ -887,6 +997,8 @@ class ClaimStore:
         tgt = self.get(target_id, follow_redirect=True)
         if not src or not tgt:
             return {"ok": False, "detail": "claim_not_found"}
+        if src["bank_id"] != (tgt.get("redirect_resolved") or tgt)["bank_id"]:
+            return {"ok": False, "detail": "cross_bank_merge_denied"}
         resolved_target = str(
             (tgt.get("redirect_resolved") or tgt).get("id") or target_id
         )
@@ -930,6 +1042,7 @@ class ClaimStore:
             "note": "merge_does_not_verify",
         }
 
+    @atomic_mutation
     def split(
         self,
         claim_id: str,
@@ -948,6 +1061,8 @@ class ClaimStore:
         if src.get("redirects_to"):
             return {"ok": False, "detail": "claim_redirected"}
         bank = bank_id or str(src.get("bank_id") or "personal")
+        if bank != src["bank_id"]:
+            return {"ok": False, "detail": "cross_bank_split_denied"}
         created: list[dict[str, Any]] = []
         for i, text in enumerate(texts):
             # Distinct scope so split parts never collide with source same_as hash
@@ -1014,6 +1129,56 @@ class ClaimStore:
             "trace_id": tid,
         }
 
+    def as_of(self, claim_id: str, timestamp: str, *, principal=None):
+        """Reconstruct recorded lifecycle at a time; never infer historical evidence validity."""
+        from datetime import datetime
+        try:
+            instant=datetime.fromisoformat(timestamp.replace("Z","+00:00"))
+            if instant.tzinfo is None:
+                raise ValueError("timezone_required")
+        except (ValueError,TypeError):
+            return {"ok":False,"detail":"invalid_timestamp"}
+        claim=self.get(claim_id,follow_redirect=False,principal=principal)
+        if not claim:
+            return None
+        if principal and (claim.get("visibility") or {}).get("decision") != "allow":
+            return None
+        with self.db.exclusive() as conn:
+            row=conn.execute(
+                """SELECT * FROM claim_decision_records WHERE claim_id=?
+                AND julianday(decision_at)<=julianday(?)
+                ORDER BY julianday(decision_at) DESC,rowid DESC LIMIT 1""",
+                (claim_id,timestamp),
+            ).fetchone()
+        if row is None:
+            return None
+        latest=dict(row)
+        # This is a recorded-state view, not a new Verification decision.
+        return {"ok":True,"claim_id":claim_id,"as_of":timestamp,
+                "recorded_lifecycle":latest["next_status"],"decision":latest,
+                "verification_status":"historical_unverified",
+                "scope":"recorded_decision_reconstruction"}
+
+    def replay(self, claim_id: str):
+        """Rerun the deterministic parser/normalizer and compare to the immutable AST."""
+        claim=self.get(claim_id,follow_redirect=False)
+        if not claim:
+            return {"ok":False,"detail":"claim_not_found"}
+        if claim["normalization_version"]!=NORMALIZATION_VERSION:
+            return {"ok":False,"detail":"historical_algorithm_unavailable",
+                    "required":claim["normalization_version"],"verification_status":"unverified"}
+        if claim["parser_version"] != PARSER_VERSION:
+            return {"ok":False,"detail":"historical_parser_unavailable", "required":claim["parser_version"], "verification_status":"unverified"}
+        parsed=parse_memory_text(claim["surface"])
+        ast=parsed.ast.model_copy(update={"scope":claim["scope"]})
+        current=normalized_hash(ast)
+        return {"ok":current==claim["normalized_hash"],"claim_id":claim_id,
+                "recorded_hash":claim["normalized_hash"],"replayed_hash":current,
+                "algorithm_version":NORMALIZATION_VERSION,"executed":True,
+                "parser_version":PARSER_VERSION,
+                "verification_status":"unverified",
+                "scope":"deterministic parser/AST replay; no model or evidence truth assertion"}
+
     def semantic_suggest(
         self,
         query: str,
@@ -1035,8 +1200,6 @@ class ClaimStore:
                 """,
                 (bank_id,),
             ).fetchall()
-            if conn.in_transaction:
-                conn.commit()
         corpus = [
             {
                 "id": r["id"],
@@ -1075,6 +1238,9 @@ class ClaimStore:
             scope = {}
         return {
             "id": row["id"],
+            "version": row["version"],
+            "normalization_version": row["normalization_version"],
+            "parser_version": row["parser_version"],
             "bank_id": row["bank_id"],
             "ast_version": row["ast_version"],
             "ast": ast,

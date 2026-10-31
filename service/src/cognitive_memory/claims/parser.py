@@ -23,8 +23,10 @@ from cognitive_memory.claims.ast import (
 )
 from cognitive_memory.claims.normalize import normalized_hash
 
+PARSER_VERSION = "claim.parser.v2"
+
 _PREFERENCE = re.compile(
-    r"(?P<sub>我|用户|主人)?\s*(?P<neg>不|没)?\s*(?P<pred>喜欢|喜爱|讨厌|爱听|偏好)\s*(?P<obj>.+)",
+    r"^(?P<sub>我|用户|主人|[\u4e00-\u9fffA-Za-z0-9_]{1,24}?)\s*(?P<neg>不|没)?\s*(?P<pred>喜欢|喜爱|讨厌|爱听|偏好)\s*(?P<obj>.+)",
     re.UNICODE,
 )
 _MUSIC_PREF = re.compile(
@@ -36,11 +38,11 @@ _MUSIC_SAVED = re.compile(
     re.UNICODE,
 )
 _IS_A = re.compile(
-    r"(?P<sub>[^\s，。！？]{1,24})\s*(是|为)\s*(?P<obj>[^\s，。！？]{1,48})",
+    r"^(?P<sub>[^\s，。！？]{1,24}?)\s*(?P<rel>不是|并非|是|为)\s*(?P<obj>[^\s，。！？]{1,48})$",
     re.UNICODE,
 )
 _LOCATED = re.compile(
-    r"(?P<sub>[^\s，。！？]{1,24})\s*(位于|在)\s*(?P<obj>[^\s，。！？]{1,48})",
+    r"^(?P<sub>[^\s，。！？]{1,24}?)\s*(?P<rel>不位于|不在|位于|在)\s*(?P<obj>[^\s，。！？]{1,48})$",
     re.UNICODE,
 )
 _COND = re.compile(
@@ -48,7 +50,7 @@ _COND = re.compile(
     re.UNICODE,
 )
 _NEG_PREFIX = re.compile(r"^(不是|并非|没有|未)(?P<body>.+)$", re.UNICODE)
-_DATE = re.compile(r"(20\d{2}-\d{2}-\d{2}|今天|昨天|明天|上周|本周|今年|去年)")
+_DATE = re.compile(r"(20\d{2}-\d{2}-\d{2}|今天|昨天|明天|今晚|今早|上周|本周|今年|去年)")
 _MULTI_SEP = re.compile(r"[;\n；]|。(?=.)")
 
 
@@ -64,6 +66,8 @@ class ParseResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "parser_version": PARSER_VERSION,
+            "parse_score_kind": "heuristic_not_probability",
             "parse_status": self.status,
             "parse_confidence": self.confidence,
             "ast_version": self.ast.ast_version,
@@ -109,17 +113,22 @@ def _try_preference(text: str, attempts: list[str]) -> ClaimAST | None:
                 surface=text,
                 scope={"modality": "preference", "epistemic": "inferred_signal"},
             )
-    m = _PREFERENCE.search(text)
+    # Remove a leading temporal label from the subject, retaining it in scope.
+    preference_text = _DATE.sub("", text, count=1) if _DATE.match(text) else text
+    m = _PREFERENCE.search(preference_text)
     if not m:
         return None
     obj = _clean(m.group("obj")).strip("。！？. ")
+    subject = _clean(m.group("sub") or "")
+    if re.search(r"不太|不怎么|现在|暂时|最近|偶尔|有时|一般|更|只在", subject) or re.search(r"[，,]|但是|不过|但下午", obj):
+        return _unresolved(text, missing=["context_or_degree"], attempts=attempts, reasons=["qualified_preference_requires_review"])
     # trim trailing commentary
     obj = re.split(r"[（(]", obj, maxsplit=1)[0].strip()
     if len(obj) < 1 or len(obj) > 64:
         return None
     pred = m.group("pred")
     atom = Atom(
-        subject=_clean(m.group("sub") or "user"),
+        subject=subject,
         predicate=pred,
         arguments=[obj],
         modality="preference",
@@ -151,15 +160,13 @@ def _try_is_a(text: str, attempts: list[str]) -> ClaimAST | None:
     m = _IS_A.search(text)
     if not m:
         return None
-    return ClaimAST(
-        root=Atom(
+    atom = Atom(
             subject=_clean(m.group("sub")),
             predicate="是",
             arguments=[_clean(m.group("obj"))],
             modality="fact",
-        ),
-        surface=text,
-    )
+        )
+    return ClaimAST(root=Negation(target=atom) if m.group("rel") in {"不是", "并非"} else atom, surface=text)
 
 
 def _try_located(text: str, attempts: list[str]) -> ClaimAST | None:
@@ -167,15 +174,13 @@ def _try_located(text: str, attempts: list[str]) -> ClaimAST | None:
     m = _LOCATED.search(text)
     if not m:
         return None
-    return ClaimAST(
-        root=Atom(
+    atom = Atom(
             subject=_clean(m.group("sub")),
             predicate="位于",
             arguments=[_clean(m.group("obj"))],
             modality="fact",
-        ),
-        surface=text,
-    )
+        )
+    return ClaimAST(root=Negation(target=atom) if m.group("rel") in {"不位于", "不在"} else atom, surface=text)
 
 
 def _try_conditional(text: str, attempts: list[str]) -> ClaimAST | None:

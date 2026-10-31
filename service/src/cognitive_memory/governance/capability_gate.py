@@ -62,8 +62,6 @@ def list_capabilities(db: Database) -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM capability_permissions ORDER BY capability"
         ).fetchall()
-        if conn.in_transaction:
-            conn.commit()
     out: list[dict[str, Any]] = []
     for r in rows:
         try:
@@ -92,8 +90,6 @@ def check_capability(db: Database, capability: str) -> dict[str, Any]:
         row = conn.execute(
             "SELECT * FROM capability_permissions WHERE capability=?", (cap,)
         ).fetchone()
-        if conn.in_transaction:
-            conn.commit()
     if not row:
         return {
             "capability": cap,
@@ -105,6 +101,11 @@ def check_capability(db: Database, capability: str) -> dict[str, Any]:
     enabled = bool(row["enabled"])
     # ACTIVE/CONTROLLED 且 enabled 才允许生产副作用；EXPERIMENTAL 只允许隔离实验标记
     allowed = enabled and level in ("CONTROLLED", "ACTIVE")
+    if row["expires_at"]:
+        try:
+            allowed = allowed and datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        except (ValueError, TypeError, AttributeError):
+            allowed = False
     experimental = level == "EXPERIMENTAL"
     return {
         "capability": cap,

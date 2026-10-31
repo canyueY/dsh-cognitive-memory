@@ -1,6 +1,6 @@
-# Mnemosyne 3.0 合并说明
+# Mnemosyne 2.0 合并说明
 
-3.0 将原 `canyueY/mnemosyne`（Node / Core）合并进 `canyueY/dsh-mnemosyne`，并把它作为唯一权威仓。
+2.0 将原 `canyueY/mnemosyne`（Node / Core）合并进 `canyueY/dsh-mnemosyne`，并把它作为唯一权威仓。
 
 ## 仓库结构
 
@@ -12,8 +12,8 @@
 
 ## 版本与兼容
 
-- Python 包版本：`3.0.0`
-- npm 包版本：`3.0.0`
+- Python 包版本：`2.0.0`
+- npm 包版本：`2.0.0`
 - 旧 `dsh-mnemosyne@0.2` 的 npm 历史仍可安装，但不再接收新能力；
 - 旧插件状态保留在 Git tag `legacy/dsh-plugin-0.2.0`；
 - 数据目录统一为 `%LOCALAPPDATA%\Mnemosyne Memory Bank`（可用 `MNEMOSYNE_MEMORY_BANK` 覆盖）。
@@ -34,5 +34,5 @@ dsh plugin --profile web add github:canyueY/dsh-mnemosyne#main
 ## 迁移原则
 
 - 不再维护两个平行的 Node 仓库；
-- 旧插件文件只作为归档，不参与 3.0 主路径；
+- 旧插件文件只作为归档，不参与 2.0 主路径；
 - 新增能力写入 `service/`，DSH 适配层只做接入，不承载核心记忆逻辑。

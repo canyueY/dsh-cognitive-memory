@@ -645,7 +645,7 @@ class MemoryService:
             sql = """
               SELECT m.* FROM memories_fts f
               JOIN memories m ON m.id = f.memory_id
-              WHERE f MATCH ?
+              WHERE memories_fts MATCH ?
                 AND m.status IN ({sts})
                 AND m.type IN ({tys})
                 {banks}
@@ -714,12 +714,25 @@ class MemoryService:
             enable=bool(q.spatiotemporal_rerank),
             limit=None,
         )
-        return self._rerank_emotion(
+        memories = self._rerank_emotion(
             memories,
             query=q.query or "",
             enable=bool(q.emotion_rerank),
-            limit=limit,
+            limit=None,
         )
+        from cognitive_memory.domains.retrieval import apply_domain_gate, boost_music_domain
+
+        memories = apply_domain_gate(
+            memories,
+            domain=getattr(q, "domain", None),
+            query=q.query or "",
+        )
+        memories = boost_music_domain(
+            memories,
+            query=q.query or "",
+            domain=getattr(q, "domain", None),
+        )
+        return memories[:limit]
 
     def _rerank_spatiotemporal(
         self,
@@ -806,6 +819,7 @@ class MemoryService:
                 mode=body.mode,
                 spatiotemporal_rerank=body.spatiotemporal_rerank,
                 emotion_rerank=emo_rerank,
+                domain=getattr(body, "domain", None),
             )
         )
         fragments: list[dict[str, Any]] = []
@@ -818,7 +832,7 @@ class MemoryService:
             if m.id in seen_ids or len(fragments) >= body.limit:
                 return False
             est = max(1, len(m.content) // 2)
-            if used + est > budget and fragments:
+            if used + est > budget:
                 return False
             st = (m.metadata or {}).get("spatiotemporal") if isinstance(m.metadata, dict) else None
             mnemo = get_mnemosyne(m.metadata)
@@ -831,6 +845,8 @@ class MemoryService:
                 "source_ids": m.source_ids,
                 "token_estimate": est,
                 "expires_at": m.expires_at,
+                "epistemic_status": "hypothesis" if (m.metadata or {}).get("epistemic") in {"inference", "inferred_signal", "summary", "generated"} else "unverified_record",
+                "confidence_kind": "uncalibrated",
                 "spatiotemporal_score": spatiotemporal_score(
                     m.metadata, expires_at=m.expires_at, mode=body.mode
                 )
@@ -859,7 +875,7 @@ class MemoryService:
             fragments.append(frag)
             seen_ids.add(m.id)
             used += est
-            tag = m.type.value
+            tag = f"{m.type.value}|{frag['epistemic_status']}"
             if body.mode == "historical" and frag.get("spatiotemporal_score", 1) >= 1.0:
                 tag = f"{tag}|hist"
             if emo_rerank and frag.get("emotion_score") and float(frag["emotion_score"]) > 1.05:
@@ -889,8 +905,8 @@ class MemoryService:
             now = _now()
             conn.execute(
                 """
-                INSERT INTO memory_feedback(memory_id, useful, incorrect, note, producer, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO memory_feedback(memory_id, useful, incorrect, note, producer, created_at, feedback_kind)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     body.memory_id,
@@ -899,6 +915,7 @@ class MemoryService:
                     body.note,
                     body.producer,
                     now,
+                    body.feedback_kind,
                 ),
             )
             self._emit(
@@ -908,33 +925,31 @@ class MemoryService:
                     "memory_id": body.memory_id,
                     "useful": body.useful,
                     "incorrect": body.incorrect,
+                    "feedback_kind": body.feedback_kind,
                 },
                 producer=body.producer,
             )
-            if body.incorrect:
+            if body.incorrect or body.feedback_kind in {"fact_correction", "execution_failure", "constraint_violation"}:
                 self._create_task_conn(
                     conn,
                     TaskCreateIn(
                         task_type="memory.review_feedback",
-                        payload={"memory_id": body.memory_id, "note": body.note},
+                        payload={"memory_id": body.memory_id, "note": body.note,
+                                 "feedback_kind": body.feedback_kind, "attribution": "unresolved"},
                     ),
                 )
             useful_count = conn.execute(
                 "SELECT COUNT(*) AS c FROM memory_feedback WHERE memory_id=? AND useful=1",
                 (body.memory_id,),
             ).fetchone()["c"]
-        promoted = False
-        if body.useful:
-            from cognitive_memory.cognition.promote import maybe_promote_with_feedback
-
-            promoted = bool(
-                maybe_promote_with_feedback(self, body.memory_id, useful_count=int(useful_count))
-            )
         return {
             "ok": True,
             "memory_id": body.memory_id,
             "useful_feedback_count": int(useful_count),
-            "promoted": promoted,
+            "promoted": False,
+            "feedback_kind": body.feedback_kind,
+            "attribution": "unresolved",
+            "fact_confidence_changed": False,
         }
 
     # ---------- tasks ----------
@@ -997,6 +1012,18 @@ class MemoryService:
             "located_at",
             "depends_on",
             "observed_during",
+            # Music Domain instance edges
+            "contains",
+            "performed_by",
+            "composed_by",
+            "belongs_to",
+            "tagged_as",
+            "listened_to",
+            "saves",
+            "follows",
+            "likes",
+            "favorites",
+            "imported_from",
         }
     )
 
@@ -1195,8 +1222,6 @@ class MemoryService:
                 sql += " ORDER BY created_at DESC LIMIT ?"
                 args.append(lim)
                 rows = conn.execute(sql, tuple(args)).fetchall()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return []
         out: list[dict[str, Any]] = []
@@ -1249,8 +1274,6 @@ class MemoryService:
                 sql += " ORDER BY created_at DESC LIMIT ?"
                 args.append(lim)
                 rows = conn.execute(sql, tuple(args)).fetchall()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return []
         out: list[dict[str, Any]] = []
@@ -1319,8 +1342,6 @@ class MemoryService:
                 row = conn.execute(
                     "SELECT * FROM change_plans WHERE id=?", (plan_id,)
                 ).fetchone()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return None
         if not row:
@@ -1364,8 +1385,6 @@ class MemoryService:
                 sql += " ORDER BY created_at DESC LIMIT ?"
                 args.append(lim)
                 rows = conn.execute(sql, tuple(args)).fetchall()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return []
         out: list[dict[str, Any]] = []
@@ -1471,7 +1490,7 @@ class MemoryService:
         return {
             "ok": True,
             "service": "cognitive-memory",
-            "version": "3.0.0",
+            "version": "2.0.0",
             "memories": mem_n,
             "observations": obs_n,
             "outbox_pending": pending,
@@ -1481,7 +1500,7 @@ class MemoryService:
             "emotion_write_enabled": self.emotion_write_enabled,
             "emotion_shadow_only": self.emotion_shadow_only,
             "emotion_retrieval_enabled": self.emotion_retrieval_enabled,
-            "mnemosyne_version": "3.0",
+            "mnemosyne_version": "2.0",
             "identity": True,
             "principals": principals,
             "banks": True,
@@ -1552,6 +1571,7 @@ class MemoryService:
         payload["type"] = schema_type
         payload["state"] = state
         payload["confidence"] = confidence
+        payload.setdefault("confidence_kind", "uncalibrated")
         payload["version"] = version
         payload.setdefault("created_at", now)
         payload["updated_at"] = now
@@ -1609,8 +1629,6 @@ class MemoryService:
                 row = conn.execute(
                     "SELECT * FROM cognitive_schemas WHERE id=?", (schema_id,)
                 ).fetchone()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return None
         if not row:
@@ -1656,8 +1674,6 @@ class MemoryService:
                 sql += " ORDER BY updated_at DESC LIMIT ?"
                 args.append(lim)
                 rows = conn.execute(sql, tuple(args)).fetchall()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return []
         out: list[dict[str, Any]] = []
@@ -1728,6 +1744,11 @@ class MemoryService:
         now = _now()
         pid = str(plan.get("id") or new_id("ccp"))
         payload = dict(plan)
+        targets = plan.get("targetSchemaIds") or plan.get("target_schema_ids") or []
+        payload.setdefault("expected_versions", {
+            str(sid): current["version"] for sid in targets
+            if (current := self.get_cognitive_schema(str(sid))) is not None
+        })
         payload["id"] = pid
         payload.setdefault("created_at", now)
         payload["updated_at"] = now
@@ -1759,8 +1780,6 @@ class MemoryService:
                 row = conn.execute(
                     "SELECT * FROM cognitive_change_plans WHERE id=?", (plan_id,)
                 ).fetchone()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return None
         if not row:
@@ -1800,8 +1819,6 @@ class MemoryService:
                 sql += " ORDER BY created_at DESC LIMIT ?"
                 args.append(lim)
                 rows = conn.execute(sql, tuple(args)).fetchall()
-                if conn.in_transaction:
-                    conn.commit()
             except sqlite3.OperationalError:
                 return []
         out: list[dict[str, Any]] = []

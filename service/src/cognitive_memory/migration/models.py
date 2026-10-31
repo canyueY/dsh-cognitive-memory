@@ -44,3 +44,4 @@ class WriteResult:
     memory_id: str | None = None
     error: str | None = None
     dry_run: bool = False
+    created: bool = True

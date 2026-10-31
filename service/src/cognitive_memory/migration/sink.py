@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import Any, Protocol
+from functools import wraps
 
 from cognitive_memory.migration.mapping import truncate_for_memory, truncate_for_observation
 from cognitive_memory.migration.models import MappedRecord, WriteResult
@@ -13,6 +14,25 @@ class MigrationSink(Protocol):
     def write(self, mapped: MappedRecord, *, dry_run: bool = False) -> WriteResult: ...
 
 
+class _WriteRejected(Exception):
+    def __init__(self,result):
+        self.result=result
+
+
+def transactional_write(fn):
+    @wraps(fn)
+    def wrapped(self,*args,**kwargs):
+        try:
+            with self.service.db.transaction():
+                result=fn(self,*args,**kwargs)
+                if not result.ok:
+                    raise _WriteRejected(result)
+                return result
+        except _WriteRejected as exc:
+            return exc.result
+    return wrapped
+
+
 class InProcessSink:
     """写入本地 `MemoryService`（capture_observation + propose_memory）。"""
 
@@ -20,6 +40,7 @@ class InProcessSink:
         self.service = service
         self.producer = producer
 
+    @transactional_write
     def write(self, mapped: MappedRecord, *, dry_run: bool = False) -> WriteResult:
         if mapped.skip_reason:
             return WriteResult(
@@ -50,6 +71,8 @@ class InProcessSink:
             mem_status = MemoryStatus.CANDIDATE
 
         try:
+            with self.service.db.exclusive() as conn:
+                cached = self.service._idempotent_get(conn, mapped.memory_idempotency_key, "memory_propose")
             obs = self.service.capture_observation(
                 ObservationIn(
                     source_kind=SourceKind.SYSTEM,
@@ -68,6 +91,7 @@ class InProcessSink:
                     source_ids=[obs.id],
                     metadata=mapped.memory_metadata,
                     idempotency_key=mapped.memory_idempotency_key,
+                    bank_id=str(mapped.observation_metadata.get("target_bank") or "personal"),
                 )
             )
             return WriteResult(
@@ -75,6 +99,7 @@ class InProcessSink:
                 ok=True,
                 observation_id=getattr(obs, "id", None),
                 memory_id=getattr(mem, "id", None),
+                created=not bool(cached) or (cached.get("metadata") or {}).get("producer")==self.producer,
             )
         except Exception as exc:  # noqa: BLE001 — 引擎层汇总错误
             return WriteResult(source_id=mapped.source_id, ok=False, error=str(exc))

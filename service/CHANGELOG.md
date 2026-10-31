@@ -1,13 +1,10 @@
 # Changelog
 
-## 3.0.0
-
-- 本目录成为 3.0 唯一 Node 实现；根目录提供 DSH 插件适配层
-- 数据目录统一为 `%LOCALAPPDATA%\Mnemosyne Memory Bank`
-- 旧 0.2 DSH 插件归档到 `../legacy/dsh-plugin/`
-
 ## 2.0.0
 
+- 本目录成为 2.0 唯一 Node 实现；根目录提供 DSH 插件适配层
+- 数据目录统一为 `%LOCALAPPDATA%\Mnemosyne Memory Bank`
+- 旧 0.2 DSH 插件归档到 `../legacy/dsh-plugin/`
 - **Mnemosyne Memory Bank**：默认数据目录改为 `%LOCALAPPDATA%\Mnemosyne Memory Bank`，与代码仓分离；`mnemosyne memory-bank migrate-legacy` 迁出旧 `DSH\cognitive-memory`
 - 宿主不再静默回退 `services/cognitive-memory`
 - GA 文档收口：`docs/GA_STATUS.md`；Y4 契约加厚；Y3 现网 V8 production 双签，E6.5 看板 `IN_PROGRESS`

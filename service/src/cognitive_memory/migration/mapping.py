@@ -2,6 +2,7 @@
 """A-MEM 记录 → 认知记忆 Observation / Memory 映射。"""
 
 from __future__ import annotations
+import hashlib
 
 from cognitive_memory.migration.models import MappedRecord, SourceRecord
 
@@ -32,7 +33,9 @@ def map_source_record(
 ) -> MappedRecord:
     content = (record.content or "").strip()
     tags = [str(t).strip() for t in (record.tags or []) if str(t).strip()]
-    source_id = str(record.source_id or "").strip() or f"hash:{hash(content) & 0xFFFFFFFF:x}"
+    source_id = str(record.source_id or "").strip() or "hash:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
+    bank=str((record.metadata or {}).get("target_bank") or "personal")
+    write_key=source_id if bank=="personal" else f"{bank}:{source_id}"
 
     if len(content) < min_content_len:
         return MappedRecord(
@@ -41,8 +44,8 @@ def map_source_record(
             memory_type="semantic",
             memory_status="candidate",
             tags=tags,
-            observation_idempotency_key=f"amem:{source_id}",
-            memory_idempotency_key=f"amem-mem:{source_id}",
+            observation_idempotency_key=f"amem:{write_key}",
+            memory_idempotency_key=f"amem-mem:{write_key}",
             observation_metadata={},
             memory_metadata={},
             occurred_at=record.occurred_at,
@@ -57,6 +60,8 @@ def map_source_record(
         **(record.metadata or {}),
     }
     mem_meta = {
+        "policy": (record.metadata or {}).get("policy", {}),
+        "original_record": record.metadata,
         "migrated_from": "a_mem",
         "amem_id": source_id,
         "tags": tags,
@@ -68,8 +73,8 @@ def map_source_record(
         memory_type=mem_type,
         memory_status="candidate",
         tags=tags,
-        observation_idempotency_key=f"amem:{source_id}",
-        memory_idempotency_key=f"amem-mem:{source_id}",
+        observation_idempotency_key=f"amem:{write_key}",
+        memory_idempotency_key=f"amem-mem:{write_key}",
         observation_metadata=obs_meta,
         memory_metadata=mem_meta,
         occurred_at=record.occurred_at,

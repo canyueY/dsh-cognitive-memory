@@ -10,27 +10,27 @@ from cognitive_memory.domain.models import MemoryStatus, MemoryType, MemoryUpdat
 
 # 显式晋升规则（文档化 + 测试锚点）
 PROMOTION_RULES: dict[str, Any] = {
-    "version": "2.0-e2.3",
+    "version": "theory.v1",
     "rules": [
         {
             "id": "force_activate",
-            "when": "metadata.force_activate == true",
-            "effect": "candidate → active",
+            "when": "retired: metadata.force_activate is not evidence",
+            "effect": "no automatic promotion",
         },
         {
             "id": "multi_evidence",
-            "when": "len(evidence) >= 2",
+            "when": "linked claim has current database-backed verification",
             "effect": "candidate → active",
         },
         {
             "id": "user_semantic_fact",
-            "when": "type==semantic AND metadata.from_user==true",
-            "effect": "candidate → active",
+            "when": "retired: user statement alone does not verify content",
+            "effect": "no automatic promotion",
         },
         {
             "id": "useful_feedback",
-            "when": "useful_feedback_count >= 1",
-            "effect": "candidate → active",
+            "when": "retired: usefulness is utility, not truth",
+            "effect": "no automatic promotion",
         },
     ],
     "forbidden": [
@@ -44,27 +44,15 @@ def evaluate_promotion(data: dict[str, Any]) -> dict[str, Any]:
     """只评估、不写库。返回 matched 规则 id 列表。"""
     if data.get("status") != MemoryStatus.CANDIDATE.value:
         return {"promote": False, "matched": [], "reason": "not_candidate"}
-    evidence = data.get("evidence") or []
     meta = data.get("metadata") or {}
-    matched: list[str] = []
-    if bool(meta.get("force_activate")):
-        matched.append("force_activate")
-    if len(evidence) >= 2:
-        matched.append("multi_evidence")
-    if data.get("type") == MemoryType.SEMANTIC.value and meta.get("from_user") is True:
-        matched.append("user_semantic_fact")
-    useful_n = int(data.get("useful_feedback_count") or meta.get("useful_feedback_count") or 0)
-    if useful_n >= 1:
-        matched.append("useful_feedback")
-    # 推断类禁止仅凭单条无用户标记晋升（useful_feedback / multi_evidence / force 可放行）
     epistemic = str(meta.get("epistemic") or "")
-    strong = {"force_activate", "multi_evidence", "useful_feedback"}
-    if epistemic == "inference" and not (strong & set(matched)):
+    if epistemic in {"inference", "inferred_signal", "summary", "generated"}:
         return {
             "promote": False,
-            "matched": matched,
-            "reason": "inference_requires_stronger_evidence",
+            "matched": [],
+            "reason": "hypothesis_requires_explicit_reclassification",
         }
+    matched = ["verified_claim"] if data.get("verified_claim_assessment") is True else []
     return {
         "promote": bool(matched),
         "matched": matched,
@@ -73,9 +61,27 @@ def evaluate_promotion(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def maybe_promote(service: MemoryService, memory_id: str) -> bool:
+    with service.db.transaction():
+        return _maybe_promote(service, memory_id)
+
+
+def _maybe_promote(service: MemoryService, memory_id: str) -> bool:
     if not memory_id:
         return False
     data = service.get_memory(memory_id, include_evidence=True)
+    from cognitive_memory.claims.store import ClaimStore
+    from cognitive_memory.verification.assessment import assess_evidence
+    from cognitive_memory.cognition.loops import _current
+    with service.db.exclusive() as conn:
+        rows = conn.execute("SELECT id FROM claims WHERE source_memory_id=? AND lifecycle='verified' AND verification_status='verified'", (memory_id,)).fetchall()
+    store = ClaimStore(service.db)
+    data["verified_claim_assessment"] = False
+    for row in rows:
+        claim = store.get(row[0], follow_redirect=False)
+        refs = [x["evidence_ref"] for x in store.list_evidence(row[0]) if x["role"] == "support"]
+        if claim and _current(claim.get("validity_from"), claim.get("validity_to")) and assess_evidence(service.db, claim, refs)["ok"]:
+            data["verified_claim_assessment"] = True
+            break
     decision = evaluate_promotion(data)
     if not decision.get("promote"):
         return False
@@ -90,18 +96,4 @@ def maybe_promote_with_feedback(
     service: MemoryService, memory_id: str, *, useful_count: int
 ) -> bool:
     """feedback → promote 闭环入口：把 useful 计数注入评估。"""
-    if not memory_id:
-        return False
-    data = service.get_memory(memory_id, include_evidence=True)
-    data["useful_feedback_count"] = int(useful_count)
-    meta = dict(data.get("metadata") or {})
-    meta["useful_feedback_count"] = int(useful_count)
-    data["metadata"] = meta
-    decision = evaluate_promotion(data)
-    if not decision.get("promote"):
-        return False
-    service.update_memory(
-        memory_id,
-        MemoryUpdateIn(status=MemoryStatus.ACTIVE, expected_version=data.get("version")),
-    )
-    return True
+    return maybe_promote(service, memory_id)

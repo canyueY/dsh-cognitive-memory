@@ -9,6 +9,7 @@ SCHEMA_AUTO_EVOLUTION for low-risk auto paths).
 from __future__ import annotations
 
 import json
+from functools import wraps
 from typing import Any
 
 from cognitive_memory.governance.capability_gate import check_capability
@@ -32,6 +33,7 @@ def authorize_schema_mutation(
     risk_level: str = "MEDIUM",
 ) -> dict[str, Any]:
     """Unified authorization check for long-term schema mutations."""
+    trace = JudgmentTraceService(db)
     if preview:
         return {
             "ok": True,
@@ -49,7 +51,7 @@ def authorize_schema_mutation(
     # confirm alone is insufficient — need capability
     gate = check_capability(db, "SCHEMA_MUTATION")
     if gate.get("allowed"):
-        _TRACE.record(
+        trace.record(
             "schema_mutation_authorized",
             governance_critical=True,
             reason_codes=["schema_mutation_capability", operation],
@@ -75,7 +77,7 @@ def authorize_schema_mutation(
                 "confirm": True,
                 "risk_level": risk_level,
             }
-    _TRACE.record(
+    trace.record(
         "schema_mutation_denied",
         governance_critical=True,
         reason_codes=["capability_locked", "confirm_insufficient", operation],
@@ -121,3 +123,40 @@ def proposal_payload(
 
 def dump_audit_note(auth: dict[str, Any]) -> str:
     return json.dumps(auth, ensure_ascii=False)[:500]
+
+
+def schema_transaction(fn):
+    """Serialize proposal checks, schema writes, audit and idempotent receipt."""
+    @wraps(fn)
+    def wrapped(service, *args, **kwargs):
+        with service.db.transaction() as conn:
+            plan_id = (args[0] if fn.__name__ == "apply_cognitive_change_plan" and args
+                       else kwargs.get("existing_plan_id"))
+            if plan_id and kwargs.get("confirm") and not kwargs.get("preview"):
+                cached = conn.execute(
+                    "SELECT result_json FROM schema_proposal_commits WHERE plan_id=?", (plan_id,)
+                ).fetchone()
+                if cached:
+                    return {**json.loads(cached[0]), "idempotent":True}
+                plan = service.get_cognitive_change_plan(plan_id) or {}
+                versions = plan.get("expected_versions") or {}
+                if not versions and plan.get("targetSchemaIds"):
+                    return {"ok":False, "detail":"proposal_version_required"}
+                for sid, expected in versions.items():
+                    current = service.get_cognitive_schema(sid)
+                    if not current or current["version"] != expected:
+                        return {"ok":False, "detail":"version_conflict"}
+            result = fn(service, *args, **kwargs)
+            if result.get("ok") and kwargs.get("confirm") and not kwargs.get("preview"):
+                pid = plan_id or result.get("change_plan_id")
+                if pid:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO schema_proposal_commits VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+                        (pid, json.dumps(result, ensure_ascii=False)),
+                    )
+                JudgmentTraceService(service.db).record(
+                    "schema.commit", input_refs=[str(pid or fn.__name__)],
+                    reason_codes=[fn.__name__], governance_critical=True,
+                )
+            return result
+    return wrapped

@@ -1,4 +1,4 @@
-﻿# Mnemosyne 2.0 — 任务书完成情况审计
+# Mnemosyne 2.0 — 任务书完成情况审计
 
 **任务书：** `10.31更新方案.txt`（2143 行）  
 **任务书基线：** `c82d47e`  
@@ -200,7 +200,7 @@ Invariant Violation
 | 15 | 故障定位/修复有复现/回归/回滚 | **通过（含可执行 rollback drill）** |
 | 16 | 关键判断完整 Trace | **部分**（JudgmentTrace 有，as-of Replay 未全） |
 | 17 | DSH 不能绕过 Governance | **部分**（宿主工具已通，GUI 未验） |
-| 18 | 3.0 基础功能兼容 | 通过（256 tests） |
+| 18 | 2.0 基础功能兼容 | 通过（352 tests） |
 | 19 | 历史迁移可回滚 | **通过（scratch trial）**；生产迁移仍禁 |
 | 20 | 核心能力有自动化测试和阶段验收 | **部分**（代码验收齐；现网发布外置） |
 
@@ -211,7 +211,7 @@ Invariant Violation
 在本轮分支上执行：
 
 ```text
-pytest -q                        256 passed in 23.43s
+pytest -q                        352 passed in 52.98s
 ```
 
 DSH 宿主：

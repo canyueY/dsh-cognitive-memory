@@ -89,10 +89,10 @@ class GoldenSampleTests(unittest.TestCase):
                     ident.get("agent_id"), s["expect"].get("identity_agent")
                 )
             if sid == "fact_user_preference":
-                # from_user 可显式晋升
-                self.assertTrue(maybe_promote(self.svc, mem.id))
+                # User-origin metadata is not database-backed verification.
+                self.assertFalse(maybe_promote(self.svc, mem.id))
                 after = self.svc.get_memory(mem.id)
-                self.assertEqual(after["status"], MemoryStatus.ACTIVE.value)
+                self.assertEqual(after["status"], MemoryStatus.CANDIDATE.value)
 
     def test_inference_coerced_without_sources_and_no_silent_promote(self) -> None:
         s = next(x for x in _load_samples() if x["id"] == "inference_agent_guess")

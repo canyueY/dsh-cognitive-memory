@@ -1,0 +1,124 @@
+{
+  "domain_id": "music",
+  "version": "1.0.0",
+  "schema_version": "music.domain.pack.v1",
+  "name": "Music",
+  "description": "Mnemosyne Music Domain Pack — ontology only; no user preference memories on install.",
+  "compatibility": {
+    "mnemosyne": ">=2.0.0"
+  },
+  "root_concept": {
+    "id": "domain:music",
+    "name": "Music",
+    "kind": "DOMAIN",
+    "description": "音乐领域根概念"
+  },
+  "concepts": [
+    {
+      "id": "concept:music.track",
+      "name": "Track",
+      "kind": "CONCEPT",
+      "description": "歌曲或具体录音版本",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.artist",
+      "name": "Artist",
+      "kind": "CONCEPT",
+      "description": "歌手、乐队、作曲者等",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.album",
+      "name": "Album",
+      "kind": "CONCEPT",
+      "description": "专辑、EP、单曲合集",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.playlist",
+      "name": "Playlist",
+      "kind": "CONCEPT",
+      "description": "歌单（内容实体，不等于用户收藏行为）",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.genre",
+      "name": "Genre",
+      "kind": "CONCEPT",
+      "description": "曲风、流派",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.listening_event",
+      "name": "ListeningEvent",
+      "kind": "EVENT_TYPE",
+      "description": "一次播放或聆听行为",
+      "parent": "domain:music"
+    },
+    {
+      "id": "concept:music.preference_signal",
+      "name": "PreferenceSignal",
+      "kind": "SIGNAL",
+      "description": "偏好信号（推断，非用户确认事实）",
+      "parent": "domain:music"
+    }
+  ],
+  "reuse_concepts": [
+    {"id": "user", "role": "subject", "note": "复用通用主体，不创建 MusicUser"},
+    {"id": "time", "role": "occurred_at", "note": "行为发生时间"},
+    {"id": "event", "role": "event", "note": "通用事件超类"},
+    {"id": "source", "role": "imported_from", "note": "音乐应用来源"},
+    {"id": "evidence", "role": "evidence", "note": "证据引用"},
+    {"id": "preference", "role": "preference", "note": "通用偏好槽位；音乐信号挂接于此"},
+    {"id": "collection", "role": "collection", "note": "收藏集合"},
+    {"id": "context", "role": "context", "note": "情境"}
+  ],
+  "relations": [
+    {"id": "music.contains", "from": "Playlist", "to": "Track", "semantics": "歌单包含歌曲"},
+    {"id": "music.performed_by", "from": "Track", "to": "Artist", "semantics": "歌曲由艺术家演唱"},
+    {"id": "music.composed_by", "from": "Track", "to": "Artist", "semantics": "歌曲由艺术家创作"},
+    {"id": "music.belongs_to", "from": "Track", "to": "Album", "semantics": "歌曲收录于专辑"},
+    {"id": "music.tagged_as", "from": "Track", "to": "Genre", "semantics": "歌曲具有某种风格"},
+    {"id": "music.listened_to", "from": "User", "to": "Track", "semantics": "用户聆听过歌曲（行为事实）"},
+    {"id": "music.saves", "from": "User", "to": "Playlist", "semantics": "用户收藏歌单"},
+    {"id": "music.follows", "from": "User", "to": "Artist", "semantics": "用户关注艺术家"},
+    {"id": "music.likes", "from": "User", "to": "Track", "semantics": "用户明确喜欢（须 confirmed，不可由单次行为自动写入）"},
+    {"id": "music.favorites", "from": "User", "to": "Track", "semantics": "用户标记最爱（须 confirmed）"},
+    {"id": "music.imported_from", "from": "MusicEntity", "to": "Source", "semantics": "数据来自哪个音乐应用"}
+  ],
+  "event_types": [
+    "track_played",
+    "track_saved",
+    "track_unsaved",
+    "playlist_saved",
+    "playlist_unsaved",
+    "artist_followed",
+    "artist_unfollowed",
+    "recommendation_seen"
+  ],
+  "policies": {
+    "provenance": "required",
+    "privacy": "user_private_bank_only",
+    "retention": "observe_timeline_not_erase_on_unsaved",
+    "retrieval": {
+      "default_inject": false,
+      "require_domain_or_music_intent": true,
+      "inference_must_keep_label": true
+    },
+    "install": {
+      "registers_ontology_only": true,
+      "does_not_import_user_data": true,
+      "does_not_infer_preferences": true
+    }
+  },
+  "network_links": [
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.track"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.artist"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.album"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.playlist"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.genre"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.listening_event"},
+    {"from": "domain:music", "relation": "contains_concept", "to": "concept:music.preference_signal"}
+  ]
+}

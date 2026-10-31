@@ -1,5 +1,9 @@
 # Mnemosyne 2.0 — Implementation Status
 
+> 2026-11-01：重构理论的有界任务闭环、固定测试重放与规则采用／回滚、推断与反馈隔离已实现。见 [本轮报告](THEORY_IMPLEMENTATION_2026_11_01.md)。有限规则验收不代表通用人格、情绪或自主成长假设已经得到验证。
+
+> 2026-10-31 审查补全：权限、Verified、规范化、迁移审批、Trace、Schema CAS/preview 已加固；服务 306 项测试通过。新增 Bootstrap/迁移 CLI、离线策略评估和隔离修复重放。范围与剩余项见 [本轮实现报告](AUDIT_REMEDIATION_2026_10_31.md)。旧阶段标签不代表全部长期目标或生产发布已完成。
+
 **更新：** 2026-10-31  
 **仓库：** `canyueY/dsh-mnemosyne`  
 

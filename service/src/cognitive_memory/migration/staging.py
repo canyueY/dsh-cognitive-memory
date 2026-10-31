@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+import os
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -80,6 +82,7 @@ def dedupe_records(
 
     kept: list[dict[str, Any]] = []
     seen_source: set[str] = set()
+    source_contents: dict[str, str] = {}
     seen_content: set[str] = set()
     dropped_by = {"source": 0, "content": 0}
 
@@ -91,6 +94,8 @@ def dedupe_records(
         if use_source and sk.endswith("::"):
             sk = ""  # 无 id 时不按空 source 去重
         if use_source and sk and sk in seen_source:
+            if strategy=="source" and source_contents[sk] != json.dumps(rec,sort_keys=True,ensure_ascii=False):
+                raise ValueError("conflicting_source_revisions_require_review")
             dropped_by["source"] += 1
             continue
         ck = _content_key(rec) if use_content else ""
@@ -99,6 +104,7 @@ def dedupe_records(
             continue
         if sk:
             seen_source.add(sk)
+            source_contents[sk] = json.dumps(rec,sort_keys=True,ensure_ascii=False)
         if ck:
             seen_content.add(ck)
         kept.append(rec)
@@ -123,6 +129,7 @@ class StagingBatch:
     checksum: str = ""
     approved_by: str | None = None
     approved_at: str | None = None
+    approved_checksum: str | None = None
     commit_report: dict[str, Any] | None = None
     dedupe_report: dict[str, Any] | None = None
     rollback_report: dict[str, Any] | None = None
@@ -147,6 +154,7 @@ class StagingBatch:
             checksum=str(data.get("checksum") or ""),
             approved_by=data.get("approved_by"),
             approved_at=data.get("approved_at"),
+            approved_checksum=data.get("approved_checksum"),
             commit_report=data.get("commit_report"),
             dedupe_report=data.get("dedupe_report"),
             rollback_report=data.get("rollback_report"),
@@ -160,6 +168,8 @@ class StagingStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, batch_id: str) -> Path:
+        if not re.fullmatch(r"[a-f0-9]{12}",batch_id):
+            raise ValueError("invalid_batch_id")
         return self.root / f"{batch_id}.json"
 
     def save(self, batch: StagingBatch) -> Path:
@@ -168,10 +178,12 @@ class StagingStore:
             batch.created_at = batch.updated_at
         batch.recompute_checksum()
         path = self._path(batch.batch_id)
-        path.write_text(
-            json.dumps(batch.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        tmp=path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+        with tmp.open("w",encoding="utf-8") as handle:
+            handle.write(json.dumps(batch.to_dict(),ensure_ascii=False,indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        tmp.replace(path)
         return path
 
     def load(self, batch_id: str) -> StagingBatch | None:
@@ -200,7 +212,7 @@ def preview_batch(
             items.append(parse_interchange(r).to_dict())
         else:
             raise TypeError(f"unsupported record type: {type(r)}")
-    strategy = "source_then_content"
+    strategy = "source"
     if dedupe is False:
         strategy = "none"
     elif isinstance(dedupe, str) and dedupe.strip():
@@ -238,6 +250,7 @@ def approve_batch(
     batch.state = StagingState.APPROVED.value
     batch.approved_by = actor
     batch.approved_at = _now()
+    batch.approved_checksum = current
     if store:
         store.save(batch)
     return batch
@@ -264,19 +277,28 @@ def commit_batch(
     store: StagingStore | None = None,
 ) -> StagingBatch:
     """未 APPROVED 禁止 Commit。"""
+    if batch.state == StagingState.COMMITTED.value:
+        return batch
     if batch.state != StagingState.APPROVED.value:
         raise PermissionError(
             f"commit denied: state={batch.state} (approval required)"
         )
+    if not batch.approved_checksum or batch.recompute_checksum() != batch.approved_checksum:
+        raise PermissionError("approved_payload_changed")
     sources = [parse_interchange(r).to_source_record() for r in batch.records]
-    cfg = MigrationConfig(dry_run=dry_run, resume=False, producer="migrate.staging")
+    cfg = MigrationConfig(dry_run=dry_run, resume=False, producer=f"migrate.staging:{batch.batch_id}")
     if service is None or dry_run:
         engine = MemoryMigrationEngine(RecordingSink(), config=cfg)
     else:
         engine = MemoryMigrationEngine.from_service(service, config=cfg)
     report = engine.run(sources)
+    previous = {row["memory_id"] for row in (batch.commit_report or {}).get("written", [])
+                if row.get("created") is True}
     batch.commit_report = report.to_dict()
-    batch.state = StagingState.COMMITTED.value
+    for row in batch.commit_report["written"]:
+        if row.get("memory_id") in previous:
+            row["created"] = True
+    batch.state = ("partial" if report.imported else "failed") if report.failed else StagingState.COMMITTED.value
     if store:
         store.save(batch)
     return batch
@@ -299,7 +321,7 @@ def rollback_batch(
     layer_norm = str(layer or "soft").strip().lower()
     if layer_norm not in ROLLBACK_LAYERS:
         raise ValueError(f"invalid rollback layer={layer!r}; expected {ROLLBACK_LAYERS}")
-    if batch.state != StagingState.COMMITTED.value:
+    if batch.state not in (StagingState.COMMITTED.value, "partial"):
         raise PermissionError(
             f"rollback denied: state={batch.state} (committed required)"
         )
@@ -311,6 +333,10 @@ def rollback_batch(
     skipped = 0
     hard = layer_norm == "hard"
     for row in written:
+        if row.get("created") is not True or row.get("dry_run"):
+            skipped += 1
+            items.append({"ok":True,"skipped":True,"reason":"not_created_by_batch"})
+            continue
         mid = str((row or {}).get("memory_id") or "").strip()
         if not mid:
             skipped += 1
@@ -336,7 +362,7 @@ def rollback_batch(
                 }
             )
 
-    batch.state = StagingState.ROLLED_BACK.value
+    batch.state = StagingState.ROLLED_BACK.value if all(i.get("ok") or i.get("skipped") for i in items) else "partial"
     batch.rollback_report = {
         "layer": layer_norm,
         "actor": actor,

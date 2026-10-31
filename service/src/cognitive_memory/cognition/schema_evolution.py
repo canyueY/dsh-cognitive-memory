@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from cognitive_memory.core.service import MemoryService
+from cognitive_memory.governance.schema_governance import schema_transaction, authorize_schema_mutation
 
 ASSIMILATION = "assimilation"
 ACCOMMODATION = "accommodation"
@@ -39,6 +40,7 @@ def classify_evolution(
     return ACCOMMODATION if (applicability_changed or c > 0) else ASSIMILATION
 
 
+@schema_transaction
 def evolve_schema(
     service: MemoryService,
     schema_id: str,
@@ -68,39 +70,39 @@ def evolve_schema(
         counter_count=len(merged_counter),
         applicability_changed=applicability is not None,
     )
-    old_conf = float(schema.get("confidence") or 0.4)
-    delta = float(confidence_delta)
-    if mode == ASSIMILATION and delta == 0.0:
-        delta = 0.04
-    elif mode == ACCOMMODATION and delta == 0.0:
-        delta = -0.02
-    elif mode == CONFLICT and delta == 0.0:
-        delta = -0.08
-    new_conf = max(0.05, min(0.99, old_conf + delta))
+    old_conf = schema.get("confidence")
+    # Association/repetition is not a calibrated epistemic update.
+    delta = 0.0
+    new_conf = old_conf
 
     history = list(schema.get("evolution_history") or [])[-19:]
     history.append(
         {
             "mode": mode,
-            "from_confidence": round(old_conf, 4),
-            "to_confidence": round(new_conf, 4),
+            "from_confidence": old_conf,
+            "to_confidence": new_conf,
             "supporting_added": new_support,
             "counter_added": new_counter,
             "reason": reason,
         }
     )
-    next_state = "CONTESTED" if mode == CONFLICT else "ACTIVE"
+    next_state = "CONTESTED" if merged_counter else str(schema.get("state") or "PROPOSED")
     preview = {
         "ok": True,
         "dry_run": True,
         "schema_id": schema_id,
         "mode": mode,
         "state": next_state,
-        "confidence": round(new_conf, 4),
+        "confidence": new_conf,
+        "confidence_delta_applied": 0.0,
         "evidence": {"supporting": merged_support, "counter": merged_counter},
     }
     if not confirm:
         return preview
+
+    gate = authorize_schema_mutation(service.db, confirm=confirm, operation="schema_evolution")
+    if not gate["ok"]:
+        return gate
 
     links = list(schema.get("network_links") or schema.get("links") or [])
     relation = {

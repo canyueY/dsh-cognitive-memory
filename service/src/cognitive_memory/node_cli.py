@@ -573,6 +573,60 @@ def cmd_component(args: argparse.Namespace) -> int:
     return 0 if out.get("ok", True) is not False else 1
 
 
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    from cognitive_memory import onboarding
+    from cognitive_memory.storage.paths import default_data_root
+    data_dir=args.data_dir or str(default_data_root())
+    action=args.cmd
+    try:
+        if action=="discover":
+            out={"ok":True,"manifest":onboarding.manifest(),"environment":onboarding.diagnose(data_dir,args.target)}
+        elif action=="diagnose":
+            out=onboarding.diagnose(data_dir,args.target)
+        elif action=="plan":
+            out=onboarding.plan_install(data_dir,target=args.target,upgrade=args.upgrade)
+            if args.output:
+                Path(args.output).write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+        elif action in {"install","upgrade"}:
+            plan=json.loads(Path(args.plan).read_text(encoding="utf-8"))
+            if action=="upgrade" and not plan.get("upgrade"):
+                out={"ok":False,"detail":"upgrade_plan_required"}
+            else:
+                out=onboarding.install(plan,confirm=args.confirm)
+        elif action=="verify":
+            out=onboarding.verify(data_dir)
+        elif action=="rollback":
+            out=onboarding.rollback(data_dir,args.receipt,confirm=args.confirm)
+        else:
+            import httpx
+            if not args.url.startswith(("http://","https://")):
+                raise ValueError("http_url_required")
+            response=httpx.get(args.url.rstrip("/")+"/api/v1/health",
+                               headers={"Authorization":"Bearer "+args.token},timeout=10)
+            response.raise_for_status()
+            health=response.json()
+            out={"ok":bool(health.get("ok")),"url":args.url,"configured":False}
+            if out["ok"] and args.confirm:
+                root=Path(data_dir).resolve()
+                root.mkdir(parents=True,exist_ok=True)
+                (root/"connection.json").write_text(json.dumps({"url":args.url,"token_env":"DSH_MEMORY_TOKEN"}),encoding="utf-8")
+                out["configured"]=True
+    except Exception as exc:
+        out={"ok":False,"detail":type(exc).__name__,"message":str(exc)}
+    print(json.dumps(out,ensure_ascii=False,indent=2))
+    return 0 if out.get("ok",True) else 1
+
+
+def cmd_memory_adoption(args: argparse.Namespace) -> int:
+    from cognitive_memory.migration.manager import cli_action
+    try:
+        out=cli_action(args)
+    except (ValueError,PermissionError,OSError) as exc:
+        out={"ok":False,"detail":str(exc)}
+    print(json.dumps(out,ensure_ascii=False,indent=2))
+    return 0 if out.get("ok") else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mnemosyne", description="Mnemosyne Node (DSH-independent)")
     _default_bank = (
@@ -585,6 +639,48 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--token", default=os.environ.get("DSH_MEMORY_TOKEN", ""))
     parser.add_argument("--config", default="", help="node.config.json / .yaml 路径")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    p_memory=sub.add_parser("memory")
+    p_memory_sub=p_memory.add_subparsers(dest="memory_action",required=True)
+    for action in ("discover","providers","inspect"):
+        p_mem=p_memory_sub.add_parser(action)
+        p_mem.add_argument("--json",action="store_true")
+        if action!="providers":
+            p_mem.add_argument("--source",default="." if action=="discover" else None,required=action=="inspect")
+        if action=="inspect":
+            p_mem.add_argument("--provider",required=True)
+        p_mem.set_defaults(func=cmd_memory_adoption)
+    p_migrate=p_memory_sub.add_parser("migrate")
+    p_migrate_sub=p_migrate.add_subparsers(dest="migration_action",required=True)
+    for action in ("plan","run","verify","history","rollback"):
+        p_mig=p_migrate_sub.add_parser(action)
+        p_mig.add_argument("--json",action="store_true")
+        if action=="plan":
+            p_mig.add_argument("--source",required=True)
+            p_mig.add_argument("--provider",required=True)
+        if action in {"run","verify","rollback"}:
+            p_mig.add_argument("--batch",required=True)
+        if action=="run":
+            p_mig.add_argument("--checksum",required=True)
+        if action in {"run","rollback"}:
+            p_mig.add_argument("--confirm",action="store_true")
+        p_mig.set_defaults(func=cmd_memory_adoption)
+    for command in ("discover","diagnose","plan","install","connect","verify","upgrade","rollback"):
+        p_boot=sub.add_parser(command)
+        p_boot.add_argument("--json",action="store_true",help="Structured JSON (default)")
+        if command in {"discover","diagnose","plan"}:
+            p_boot.add_argument("--target",default="standalone")
+        if command=="plan":
+            p_boot.add_argument("-o","--output",default="")
+            p_boot.add_argument("--upgrade",action="store_true")
+        if command in {"install","upgrade"}:
+            p_boot.add_argument("--plan",required=True)
+        if command=="connect":
+            p_boot.add_argument("--url",required=True)
+        if command=="rollback":
+            p_boot.add_argument("--receipt",required=True)
+        if command in {"install","upgrade","rollback","connect"}:
+            p_boot.add_argument("--confirm",action="store_true")
+        p_boot.set_defaults(func=cmd_bootstrap)
 
     p_doc = sub.add_parser("doctor", help="本地自检（不依赖 DSH）")
     p_doc.set_defaults(func=cmd_doctor)

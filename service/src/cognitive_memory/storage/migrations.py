@@ -658,7 +658,53 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON claim_decision_records(trace_id);
         """,
     ),
+    (
+        "016_audit_hardening",
+        """
+        CREATE TABLE IF NOT EXISTS judgment_traces (
+          id TEXT PRIMARY KEY,
+          judgment_type TEXT NOT NULL,
+          governance_critical INTEGER NOT NULL DEFAULT 0,
+          payload_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_judgment_traces_type ON judgment_traces(judgment_type, created_at);
+        ALTER TABLE claims ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE claims ADD COLUMN normalization_version TEXT NOT NULL DEFAULT 'claim.normalize.v1';
+        CREATE TABLE IF NOT EXISTS schema_proposal_commits (
+          plan_id TEXT PRIMARY KEY,
+          result_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        """,
+    ),
 ]
+
+
+MIGRATIONS.append(("017_theory_loops", """
+ALTER TABLE claims ADD COLUMN parser_version TEXT NOT NULL DEFAULT 'claim.parser.legacy';
+ALTER TABLE memory_feedback ADD COLUMN feedback_kind TEXT NOT NULL DEFAULT 'unclassified';
+CREATE TABLE cognitive_task_runs (
+  id TEXT PRIMARY KEY, bank_id TEXT NOT NULL, request_json TEXT NOT NULL,
+  result_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE cognitive_validation_suites (
+  id TEXT PRIMARY KEY, bank_id TEXT NOT NULL, digest TEXT NOT NULL,
+  payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE cognitive_learning_updates (
+  id TEXT PRIMARY KEY, bank_id TEXT NOT NULL, schema_id TEXT NOT NULL,
+  suite_id TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE cognitive_result_cache (
+  cache_key TEXT PRIMARY KEY, result_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE cognitive_task_feedback (
+  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES cognitive_task_runs(id),
+  payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+"""))
 
 
 def apply_migrations(conn: sqlite3.Connection) -> list[str]:
@@ -681,11 +727,15 @@ def apply_migrations(conn: sqlite3.Connection) -> list[str]:
     for mid, sql in MIGRATIONS:
         if mid in applied:
             continue
-        conn.executescript(sql)
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_migrations(id, applied_at) VALUES (?, ?)",
-            (mid, now),
-        )
+        try:
+            conn.executescript(
+                "BEGIN IMMEDIATE;\n" + sql
+                + "\nINSERT OR IGNORE INTO schema_migrations(id, applied_at) VALUES ('"
+                + mid.replace("'", "''") + "','" + now + "');\nCOMMIT;"
+            )
+        except Exception:
+            conn.rollback()
+            raise
         done.append(mid)
     conn.commit()
     return done

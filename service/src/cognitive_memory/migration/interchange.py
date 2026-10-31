@@ -85,6 +85,31 @@ class InterchangeRecord:
             "provenance": self.provenance,
             **{k: v for k, v in (self.raw_payload or {}).items() if k not in ("content", "text")},
         }
+        raw=self.raw_payload or {}
+        containers=[raw,self.extensions,raw.get("metadata") or {},
+                    self.extensions.get("metadata") or {},self.extensions.get("mem0_metadata") or {},
+                    self.extensions.get("provider_metadata") or {}]
+        policies=[c.get("policy",c) for c in containers if isinstance(c,dict)]
+        policy={}
+        for flag,default in (("allow_store",True),("allow_forward",False),("allow_train",False)):
+            specified=[p[flag] for p in policies if flag in p]
+            policy[flag]=all(v is True for v in specified) if specified else default
+        limits=[p["retain_until"] for p in policies if p.get("retain_until")]
+        if limits:
+            from cognitive_memory.governance.policy import _parse_ts
+            dates=[_parse_ts(t) for t in limits]
+            if any(t is None for t in dates):
+                policy["allow_store"]=False
+            else:
+                policy["retain_until"]=min(dates).isoformat()
+        if any(c.get("deleted") is True or c.get("tombstone") is True for c in containers if isinstance(c,dict)):
+            policy["allow_store"]=False
+        meta["policy"]=policy
+        bank=self.extensions.get("bank_id") or raw.get("bank_id") or "personal"
+        from cognitive_memory.memory.banks import BANK_CATALOG
+        if bank not in BANK_CATALOG:
+            raise ValueError("source_bank_requires_explicit_mapping")
+        meta["target_bank"]=bank
         occurred = None
         if isinstance(self.time, dict):
             occurred = self.time.get("occurred_at") or self.time.get("created_at")

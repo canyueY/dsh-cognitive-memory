@@ -11,6 +11,25 @@ from cognitive_memory.storage.db import Database
 
 
 def repair_claim_invariant(db: Database, claim_id: str, *, code: str) -> dict[str, Any]:
+    from cognitive_memory.tracing.service import JudgmentTraceService
+    with db.transaction() as conn:
+        before = ClaimStore(db).get(claim_id, follow_redirect=False)
+        result = _repair_claim_invariant(db, claim_id, code=code)
+        if result.get("ok") and before:
+            after = ClaimStore(db).get(claim_id, follow_redirect=False)
+            conn.execute(
+                """INSERT INTO claim_lifecycle_events(
+                  id,claim_id,from_status,to_status,reason,actor,policy_version,evidence_refs_json,created_at
+                ) VALUES (lower(hex(randomblob(8))),?,?,?,?, 'fault_repair','claim.lifecycle.v1','[]',
+                          strftime('%Y-%m-%dT%H:%M:%SZ','now'))""",
+                (claim_id,before["lifecycle"],after["lifecycle"],f"fault_repair:{code}"),
+            )
+            JudgmentTraceService(db).record("fault.repair",input_refs=[claim_id],
+                                            reason_codes=[code],governance_critical=True)
+        return result
+
+
+def _repair_claim_invariant(db: Database, claim_id: str, *, code: str) -> dict[str, Any]:
     """Apply the minimal governance-safe patch for a known invariant code."""
     store = ClaimStore(db)
     claim = store.get(claim_id, follow_redirect=False)

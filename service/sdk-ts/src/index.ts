@@ -95,13 +95,46 @@ export class MnemosyneClient {
     });
   }
 
-  feedback(memoryId: string, opts: { useful?: boolean; incorrect?: boolean; note?: string }) {
+  feedback(memoryId: string, opts: { useful?: boolean; incorrect?: boolean; note?: string; feedbackKind?: string }) {
     return this.request<Record<string, unknown>>("POST", "/api/v1/feedback", {
       memory_id: memoryId,
       useful: opts.useful,
       incorrect: opts.incorrect,
       note: opts.note ?? "",
       producer: "mnemosyne-ts-sdk",
+      feedback_kind: opts.feedbackKind ?? "unclassified",
     });
+  }
+
+  runCognitiveTask(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/cognition/tasks/run", payload);
+  }
+
+  registerValidationSuite(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/cognition/validation-suites", payload);
+  }
+
+  recordCognitiveResult(runId: string, payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", `/api/v1/cognition/tasks/${encodeURIComponent(runId)}/feedback`, payload);
+  }
+
+  proposeLearningUpdate(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/cognition/learning-updates", payload);
+  }
+
+  evaluateLearningUpdate(updateId: string) {
+    return this.request<Record<string, unknown>>("POST", `/api/v1/cognition/learning-updates/${encodeURIComponent(updateId)}/evaluate`);
+  }
+
+  applyLearningUpdate(updateId: string, confirm = false) {
+    return this.request<Record<string, unknown>>("POST", `/api/v1/cognition/learning-updates/${encodeURIComponent(updateId)}/apply?confirm=${confirm}`);
+  }
+
+  rollbackLearningUpdate(updateId: string, confirm = false) {
+    return this.request<Record<string, unknown>>("POST", `/api/v1/cognition/learning-updates/${encodeURIComponent(updateId)}/rollback?confirm=${confirm}`);
+  }
+
+  recordProfileHypothesis(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/cognition/profile-hypotheses", payload);
   }
 }

@@ -59,12 +59,10 @@ class PersistentVerificationStore:
             row = conn.execute(
                 """
                 SELECT * FROM verification_records
-                WHERE claim_id=? ORDER BY created_at DESC LIMIT 1
+                WHERE claim_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1
                 """,
                 (claim_id,),
             ).fetchone()
-            if conn.in_transaction:
-                conn.commit()
         if not row:
             return None
         return self._row_to_record(row)
@@ -90,8 +88,6 @@ class PersistentVerificationStore:
             row = conn.execute(
                 "SELECT * FROM verification_records WHERE id=?", (record_id,)
             ).fetchone()
-            if conn.in_transaction:
-                conn.commit()
         return self._row_to_record(row) if row else None
 
     @staticmethod

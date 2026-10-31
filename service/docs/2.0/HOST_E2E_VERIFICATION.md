@@ -114,7 +114,7 @@ memory_observe
 {
   "ok": true,
   "service": "cognitive-memory",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "memories": 0,
   "observations": 0,
   "schemas": 0,
@@ -122,7 +122,7 @@ memory_observe
   "banks": true,
   "authority": true,
   "authority_state": "mnemosyne_primary",
-  "mnemosyne_version": "3.0"
+  "mnemosyne_version": "2.0"
 }
 ```
 
@@ -220,7 +220,7 @@ Win32_Process python.exe command line 含 host-e2e-data 的进程：0 个
 {"type":"status","phase":"turn_end","reason":{"kind":"completed"}}
 ```
 
-`memory_health` 返回 `ok: true`、`version: 3.0.0`；`memory_search` 返回 2 条（working + episodic candidate）。
+`memory_health` 返回 `ok: true`、`version: 2.0.0`；`memory_search` 返回 2 条（working + episodic candidate）。
 
 进程回收：
 

@@ -14,9 +14,11 @@ from cognitive_memory.governance.capability_gate import check_capability
 from cognitive_memory.governance.schema_governance import (
     authorize_schema_mutation,
     proposal_payload,
+    schema_transaction,
 )
 
 
+@schema_transaction
 def assimilate_schema(
     service: MemoryService,
     schema_id: str,
@@ -49,7 +51,8 @@ def assimilate_schema(
     patch = {
         "evidence": evid_next,
         "assimilation_notes": notes[-20:],
-        "confidence": min(0.85, float(sch.get("confidence") or 0.4) + 0.02 * len(added)),
+        "confidence": sch.get("confidence"),
+        "confidence_kind": "uncalibrated",
     }
     proposal = proposal_payload(
         operation="ASSIMILATE",
@@ -60,7 +63,7 @@ def assimilate_schema(
         patch=patch,
         payload={"memory_ids": list(memory_ids or []), "note": note},
     )
-    plan_id = service.store_cognitive_change_plan(proposal)
+    plan_id = None if preview else service.store_cognitive_change_plan(proposal)
 
     if preview or not confirm:
         return {
@@ -111,6 +114,7 @@ def assimilate_schema(
     }
 
 
+@schema_transaction
 def accommodate_schema(
     service: MemoryService,
     schema_id: str,
@@ -148,7 +152,8 @@ def accommodate_schema(
     patch = {
         "evidence": evid_next,
         "applicability": app,
-        "confidence": max(0.15, float(sch.get("confidence") or 0.4) - 0.05 * len(added)),
+        "confidence": sch.get("confidence"),
+        "confidence_kind": "uncalibrated",
     }
     proposal = proposal_payload(
         operation="ACCOMMODATE",
@@ -170,7 +175,7 @@ def accommodate_schema(
             "可能拆分情境子图式",
         ]
         proposal["operation"] = "SPECIALIZE"
-    plan_id = service.store_cognitive_change_plan(proposal)
+    plan_id = None if preview else service.store_cognitive_change_plan(proposal)
 
     if preview or not confirm:
         return {
@@ -223,6 +228,7 @@ def accommodate_schema(
     }
 
 
+@schema_transaction
 def apply_cognitive_change_plan(
     service: MemoryService,
     plan_id: str,
