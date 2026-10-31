@@ -5,8 +5,9 @@
 - **DSH 0.2.1 宿主接口兼容**
   - `engines.dsh: >=0.2.1-0 <0.3.0`（含 rc；准入以 `engines.dsh` 为准）
   - `dsh.manifestVersion: 1`；peer `@deepseek-ai/dsh-tools` 对齐 0.2.1
-  - tool `output.schema` 改为合法 JsonSchemaNode（去掉非法 `type: "json"`）
+  - tool `output.schema` 使用 `{ type: 'object', additionalProperties: true }`（`type:json` / 空 `{}` 会被 0.2.1 `defineTool` 拒绝）
   - `execute(args, exec)` 转发 `exec.signal` 到 MemoryClient
+  - 以 `@deepseek-ai/dsh-tools@0.2.1-rc.5` 实机校验全部 memory_* 工具可注册
 
 ## 3.0.0
 

@@ -18,7 +18,7 @@ test('package.json declares engines.dsh for 0.2.1 admission', () => {
   assert.match(String(pkg.peerDependencies?.['@deepseek-ai/dsh-tools'] || ''), /0\.2\.1/);
 });
 
-test('tool output schemas are JsonSchemaNode-safe (no type:json)', () => {
+test('tool output schemas are 0.2.1 JsonSchemaNode-safe', () => {
   const builders = [
     specs.healthToolSpec,
     specs.searchToolSpec,
@@ -31,15 +31,19 @@ test('tool output schemas are JsonSchemaNode-safe (no type:json)', () => {
     specs.taskToolSpec,
     specs.observeToolSpec,
   ];
+  const allowed = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean', 'null']);
   for (const build of builders) {
     const spec = build();
     const schema = spec.output?.schema;
     assert.ok(schema && typeof schema === 'object', `${spec.name} missing output.schema`);
     assert.notEqual(schema.type, 'json', `${spec.name} must not use type:json in output`);
-    if (schema.type != null) {
-      assert.ok(
-        ['object', 'array', 'string', 'number', 'integer', 'boolean', 'null'].includes(schema.type),
-        `${spec.name} has unsupported output type ${schema.type}`,
+    assert.ok(schema.type, `${spec.name} output.schema.type required by dsh-tools 0.2.1`);
+    assert.ok(allowed.has(schema.type), `${spec.name} has unsupported output type ${schema.type}`);
+    if (schema.type === 'object') {
+      assert.equal(
+        typeof schema.additionalProperties,
+        'boolean',
+        `${spec.name} object output must set additionalProperties`,
       );
     }
   }
