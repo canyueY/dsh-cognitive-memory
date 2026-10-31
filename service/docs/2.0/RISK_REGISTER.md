@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|
 | R01 | Claim 全链路缺失 | Critical | 无 `claims` 表、无 AST/parser/relation/state；测试中无 Claim | P2 无法开始；2.0 核心能力不存在 | P1 冻结 AST/Result/State；P2 单独立项 |
 | R02 | Evidence 只是 Memory↔Observation 链接 | Critical | `memory_evidence` 字段；57,169 条链接 | 无法计算独立性/派生链/Justification/证据级权限 | 新增 Evidence 对象；保留旧链接过渡 |
-| R03 | Schema mutation 绕过统一治理 | Critical | `assimilate_schema`/`accommodate_schema` 直接 `update_cognitive_schema`；split/merge `confirm=true` 直接执行；API 只要求 Node token | 高风险结构变更可未经 Authority/审批落盘 | P1 收口为 LearningProposal + Authority；封 direct mutation |
+| R03 | Schema mutation 绕过统一治理 | Critical | ~~direct assimilate/accommodate~~ → P1.5 CLOSED：`SCHEMA_MUTATION` + LearningProposal；confirm alone 拒绝 | 高风险结构变更可未经审批落盘 | **CLOSED**（2026-10-31） |
 | R04 | 对象级 SecurityContext 缺失 | High | `memories` 只有 `bank_id`；schemas/relations/evidence 无统一 owner/purpose/classification | 跨 Agent/Bank/用途泄漏；无法实现 `visible` | 增加对象级 security；Claim 前先定义 scope |
 | R05 | VerificationRecord 缺失 | High | 只有 `validation_state`、`confidence`、`verification_status` 字段 | 无法证明 verified；无法绑定范围/有效期/策略版本 | P1 冻结 VerificationResult；P2 实现 |
 | R06 | Schema 发现/演化是启发式 | High | `schema_discovery` token Jaccard；`schema_evolution` 固定 delta | 误聚类、误合并、置信度虚高 | 只作为 candidate；P4 前不自动 ACTIVE |

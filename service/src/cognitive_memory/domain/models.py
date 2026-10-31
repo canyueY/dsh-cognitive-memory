@@ -255,15 +255,51 @@ class SchemaDiscoverIn(BaseModel):
     persist: bool = True
 
 
+class ClaimProposeIn(BaseModel):
+    text: str
+    bank_id: str = "personal"
+    source_memory_id: str | None = None
+    persist_unresolved: bool = True
+
+
+class ClaimTransitionIn(BaseModel):
+    target_status: str
+    reason: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+
+
+class ClaimEvidenceIn(BaseModel):
+    evidence_ref: str
+    role: str = "support"
+    independent: bool = False
+
+
+class ClaimRedirectIn(BaseModel):
+    target_id: str
+    reason: str = "merge"
+
+
+class ClaimVerifyIn(BaseModel):
+    evidence_refs: list[str] = Field(default_factory=list)
+    actor: str = ""
+    evidence_still_valid: bool = True
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""
+    # P1.5：confirm  alone 不足；落盘另需 SCHEMA_MUTATION
+    confirm: bool = False
+    preview: bool = False
 
 
 class SchemaAccommodateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     counter_note: str = ""
     propose_split: bool = True
+    confirm: bool = False
+    preview: bool = False
 
 
 class CognitiveChangePlanIn(BaseModel):
@@ -278,6 +314,7 @@ class CognitiveChangePlanIn(BaseModel):
 
 class CognitiveChangePlanApplyIn(BaseModel):
     confirm: bool = False
+    preview: bool = False
 
 
 class CapabilityCheckIn(BaseModel):

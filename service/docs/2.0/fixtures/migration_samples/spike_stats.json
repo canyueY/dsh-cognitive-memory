@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-10-31T07:10:58Z",
+  "db_path": "C:\\Users\\残月Y\\AppData\\Local\\Mnemosyne Memory Bank\\data\\memory.db",
+  "sample_count": 100,
+  "stats": {
+    "sample_count": 100,
+    "claim_extraction_rate": 0.18,
+    "multi_claim_memory_rate": 0.46,
+    "ast_validity_rate": 1.0,
+    "unresolved_rate": 0.82,
+    "needs_review_rate": 0.0,
+    "provenance_complete_rate": 0.0,
+    "provenance_unknown_rate": 0.54,
+    "security_mapping_failure_rate": 0.0,
+    "false_merge_candidate_groups": 1,
+    "false_merge_rate_heuristic": 0.01,
+    "review_required_rate": 0.82,
+    "by_stratum": {
+      "S1_simple_fact": {
+        "total": 41,
+        "parsed": 0,
+        "unresolved": 41,
+        "needs_review": 0
+      },
+      "S2_preference": {
+        "total": 10,
+        "parsed": 10,
+        "unresolved": 0,
+        "needs_review": 0
+      },
+      "S3_temporal": {
+        "total": 10,
+        "parsed": 0,
+        "unresolved": 10,
+        "needs_review": 0
+      },
+      "S4_conditional": {
+        "total": 10,
+        "parsed": 0,
+        "unresolved": 10,
+        "needs_review": 0
+      },
+      "S5_negation": {
+        "total": 9,
+        "parsed": 2,
+        "unresolved": 7,
+        "needs_review": 0
+      },
+      "S6_synonym_candidate": {
+        "total": 6,
+        "parsed": 6,
+        "unresolved": 0,
+        "needs_review": 0
+      },
+      "S7_conflict_candidate": {
+        "total": 7,
+        "parsed": 0,
+        "unresolved": 7,
+        "needs_review": 0
+      },
+      "S10_unstructured": {
+        "total": 7,
+        "parsed": 0,
+        "unresolved": 7,
+        "needs_review": 0
+      }
+    },
+    "merge_candidate_hashes": {
+      "b0970b1b56825d43183f328f1ab539d3170dbeb1f3db0dd1f106f81d3f16f932": [
+        "mem_1a190898a229fd651767f",
+        "mem_1a19089282191a91f00ba"
+      ]
+    }
+  },
+  "note": "read_only_spike; no production writes; no auto-verify"
+}

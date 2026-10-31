@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from cognitive_memory.core.service import MemoryService
+from cognitive_memory.governance.schema_governance import authorize_schema_mutation
 
 
 def _links(sch: dict[str, Any]) -> list[dict[str, Any]]:
@@ -73,8 +74,12 @@ def split_schema(
     note: str = "",
     confirm: bool = False,
     existing_plan_id: str | None = None,
+    _governance_preauthorized: bool = False,
 ) -> dict[str, Any]:
-    """将一图式拆为多个子图式；默认只出变更计划，confirm 后落盘。"""
+    """将一图式拆为多个子图式；默认只出变更计划。
+
+    落盘需 confirm + SCHEMA_MUTATION（confirm  alone 不足）。
+    """
     parent = service.get_cognitive_schema(schema_id)
     if not parent:
         return {"ok": False, "detail": "schema_not_found"}
@@ -103,9 +108,28 @@ def split_schema(
         return {
             "ok": True,
             "dry_run": True,
+            "preview": True,
             "change_plan_id": plan_id,
             "impact": impact_of_schema(service, schema_id),
+            "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
         }
+
+    if not _governance_preauthorized:
+        auth = authorize_schema_mutation(
+            service.db,
+            confirm=True,
+            preview=False,
+            operation="SPLIT",
+            risk_level="HIGH",
+        )
+        if not auth.get("allowed"):
+            return {
+                "ok": False,
+                "detail": auth.get("detail") or "capability_locked",
+                "change_plan_id": plan_id,
+                "auth": auth,
+                "note": "confirm_true_is_not_authorization",
+            }
 
     children: list[dict[str, Any]] = []
     for spec in child_specs:
@@ -165,8 +189,9 @@ def merge_schemas(
     note: str = "",
     confirm: bool = False,
     existing_plan_id: str | None = None,
+    _governance_preauthorized: bool = False,
 ) -> dict[str, Any]:
-    """合并多个图式为一；默认计划，confirm 后创建合并体并 RETIRE 源。"""
+    """合并多个图式为一；默认计划。落盘需 confirm + SCHEMA_MUTATION。"""
     ids = [str(x) for x in schema_ids if x]
     if len(ids) < 2:
         return {"ok": False, "detail": "need_at_least_two_schemas"}
@@ -199,9 +224,28 @@ def merge_schemas(
         return {
             "ok": True,
             "dry_run": True,
+            "preview": True,
             "change_plan_id": plan_id,
             "impacts": [impact_of_schema(service, s) for s in ids],
+            "note": "confirm_and_SCHEMA_MUTATION_required_to_persist",
         }
+
+    if not _governance_preauthorized:
+        auth = authorize_schema_mutation(
+            service.db,
+            confirm=True,
+            preview=False,
+            operation="MERGE",
+            risk_level="HIGH",
+        )
+        if not auth.get("allowed"):
+            return {
+                "ok": False,
+                "detail": auth.get("detail") or "capability_locked",
+                "change_plan_id": plan_id,
+                "auth": auth,
+                "note": "confirm_true_is_not_authorization",
+            }
 
     supporting: list[str] = []
     counter: list[str] = []

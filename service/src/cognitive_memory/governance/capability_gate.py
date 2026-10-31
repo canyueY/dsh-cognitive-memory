@@ -12,6 +12,8 @@ from cognitive_memory.storage.db import Database
 
 CAPABILITIES = (
     "SCHEMA_AUTO_EVOLUTION",
+    # P1.5：长期 Schema 变更（assimilate/accommodate/split/merge/apply）
+    "SCHEMA_MUTATION",
     "BANDIT_EXPERIMENT",
     "RL_OFFLINE_TRAINING",
     "RL_POLICY_DEPLOYMENT",

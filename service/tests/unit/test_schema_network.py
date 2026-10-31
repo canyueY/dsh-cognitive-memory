@@ -13,6 +13,10 @@ from cognitive_memory.cognition.schema_network import (
 from cognitive_memory.core.service import MemoryService
 from cognitive_memory.domain.models import MemoryProposeIn, MemoryStatus, MemoryType
 from cognitive_memory.events.bus import EventBus
+from cognitive_memory.governance.capability_gate import (
+    ensure_default_capabilities,
+    set_capability_level,
+)
 from cognitive_memory.storage.db import Database
 
 
@@ -21,6 +25,7 @@ class SchemaNetworkTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.db = Database(Path(self.tmp.name) / "memory.db")
         self.svc = MemoryService(self.db, EventBus())
+        ensure_default_capabilities(self.db)
 
     def tearDown(self) -> None:
         self.db.close()
@@ -35,7 +40,6 @@ class SchemaNetworkTests(unittest.TestCase):
                 source_ids=["obs_dummy"],
             )
         )
-        # source may not exist — still ok for schema evidence refs in unit test
         return m.id
 
     def test_split_merge_and_impact(self) -> None:
@@ -64,6 +68,27 @@ class SchemaNetworkTests(unittest.TestCase):
         self.assertTrue(dry["dry_run"])
         self.assertTrue(dry.get("change_plan_id"))
 
+        # confirm alone insufficient
+        blocked = split_schema(
+            self.svc,
+            sid,
+            child_specs=[
+                {"name": "忙碌简洁", "memory_ids": [mid1]},
+                {"name": "技术详尽", "memory_ids": [mid2]},
+            ],
+            confirm=True,
+            existing_plan_id=dry["change_plan_id"],
+        )
+        self.assertFalse(blocked.get("ok"))
+        self.assertEqual(blocked.get("detail"), "capability_locked")
+
+        set_capability_level(
+            self.db,
+            "SCHEMA_MUTATION",
+            level="ACTIVE",
+            enabled=True,
+            actor="test",
+        )
         done = split_schema(
             self.svc,
             sid,

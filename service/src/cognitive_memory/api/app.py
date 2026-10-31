@@ -19,6 +19,11 @@ from cognitive_memory.domain.models import (
     ChangeDetectIn,
     ChangePlanApplyIn,
     ChangePlanBuildIn,
+    ClaimEvidenceIn,
+    ClaimProposeIn,
+    ClaimRedirectIn,
+    ClaimTransitionIn,
+    ClaimVerifyIn,
     CognitiveChangePlanApplyIn,
     CognitiveChangePlanIn,
     ContextBuildIn,
@@ -682,6 +687,124 @@ def create_app(
             persist=body.persist,
         )
 
+    # ---- P2 Claim vertical slice ----
+    def _claim_store():
+        from cognitive_memory.claims.store import ClaimStore
+
+        if not hasattr(app.state, "claim_store"):
+            app.state.claim_store = ClaimStore(service.db)
+        return app.state.claim_store
+
+    @app.post(f"{pref}/claims/propose")
+    def claims_propose(
+        body: ClaimProposeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.propose")
+        ),
+    ) -> dict[str, Any]:
+        sec = access.to_security_context(default_bank=body.bank_id)
+        if not sec.allows_bank(body.bank_id) and not access.is_node_admin:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "bank_denied", "message": "claim bank not granted"},
+            )
+        return _claim_store().propose_from_text(
+            body.text,
+            bank_id=body.bank_id,
+            source_memory_id=body.source_memory_id,
+            persist_unresolved=body.persist_unresolved,
+        )
+
+    @app.get(f"{pref}/claims/{{claim_id}}")
+    def claims_get(
+        claim_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="claims.get")
+        ),
+    ) -> dict[str, Any]:
+        # Peek bank without visibility first (node-only internal); then re-get with principal
+        raw = _claim_store().get(claim_id, follow_redirect=False, principal=None)
+        if not raw:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        bank = str(raw.get("bank_id") or "personal")
+        if access.is_node_admin:
+            # Node admin still evaluated against default personal unless grants list banks
+            principal = access.to_security_context(default_bank=bank)
+            # Node admin may read any bank
+            principal.authorized_grants = list(
+                set(principal.authorized_grants or []) | {f"bank:{bank}"}
+            )
+            principal.bank_id = bank
+        else:
+            principal = access.to_security_context(default_bank=bank)
+        pack = _claim_store().get(claim_id, principal=principal)
+        if not pack:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "claim"}
+            )
+        return {"ok": True, "claim": pack}
+
+    @app.post(f"{pref}/claims/{{claim_id}}/transition")
+    def claims_transition(
+        claim_id: str,
+        body: ClaimTransitionIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.transition")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().transition(
+            claim_id,
+            body.target_status,
+            reason=body.reason,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/evidence")
+    def claims_evidence(
+        claim_id: str,
+        body: ClaimEvidenceIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.evidence")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().attach_evidence(
+            claim_id,
+            body.evidence_ref,
+            role=body.role,
+            independent=body.independent,
+        )
+
+    @app.post(f"{pref}/claims/{{claim_id}}/redirect")
+    def claims_redirect(
+        claim_id: str,
+        body: ClaimRedirectIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.redirect")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        return _claim_store().redirect(claim_id, body.target_id, reason=body.reason)
+
+    @app.post(f"{pref}/claims/{{claim_id}}/verify")
+    def claims_verify(
+        claim_id: str,
+        body: ClaimVerifyIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="claims.verify")
+        ),
+    ) -> dict[str, Any]:
+        return _claim_store().submit_verified(
+            claim_id,
+            evidence_refs=body.evidence_refs,
+            actor=body.actor or access.actor_id,
+            authorized=True,
+            evidence_still_valid=body.evidence_still_valid,
+        )
+
     @app.get(f"{pref}/schemas")
     def schemas_list(
         limit: int = 40,
@@ -712,7 +835,12 @@ def create_app(
         from cognitive_memory.cognition.schema_ops import assimilate_schema
 
         return assimilate_schema(
-            service, schema_id, memory_ids=body.memory_ids, note=body.note
+            service,
+            schema_id,
+            memory_ids=body.memory_ids,
+            note=body.note,
+            confirm=bool(body.confirm),
+            preview=bool(body.preview),
         )
 
     @app.post(f"{pref}/schemas/{{schema_id}}/split")
@@ -763,6 +891,8 @@ def create_app(
             memory_ids=body.memory_ids,
             counter_note=body.counter_note,
             propose_split=body.propose_split,
+            confirm=bool(body.confirm),
+            preview=bool(body.preview),
         )
 
     @app.post(f"{pref}/schemas/plans")
@@ -800,7 +930,12 @@ def create_app(
     ) -> dict[str, Any]:
         from cognitive_memory.cognition.schema_ops import apply_cognitive_change_plan
 
-        return apply_cognitive_change_plan(service, plan_id, confirm=bool(body.confirm))
+        return apply_cognitive_change_plan(
+            service,
+            plan_id,
+            confirm=bool(body.confirm),
+            preview=bool(getattr(body, "preview", False)),
+        )
 
     @app.post(f"{pref}/metacognition/reflect")
     def metacognition_reflect(
