@@ -533,6 +533,34 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON strategy_logs(strategy_id, created_at);
         """,
     ),
+    (
+        "013_ab_v1",
+        """
+        -- P5 online A/B metrics (exposures/outcomes only; no auto-deploy)
+        CREATE TABLE IF NOT EXISTS ab_exposures (
+          id TEXT PRIMARY KEY,
+          experiment_id TEXT NOT NULL,
+          arm TEXT NOT NULL,
+          subject_key TEXT NOT NULL DEFAULT '',
+          context_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ab_exposures_exp
+          ON ab_exposures(experiment_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS ab_outcomes (
+          id TEXT PRIMARY KEY,
+          exposure_id TEXT NOT NULL,
+          experiment_id TEXT NOT NULL,
+          reward REAL,
+          label TEXT NOT NULL DEFAULT '',
+          detail_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ab_outcomes_exp
+          ON ab_outcomes(experiment_id, created_at);
+        """,
+    ),
 ]
 
 

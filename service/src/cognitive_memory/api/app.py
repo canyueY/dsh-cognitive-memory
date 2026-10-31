@@ -26,6 +26,9 @@ from cognitive_memory.domain.models import (
     ClaimVerifyIn,
     EvidenceIndependenceIn,
     EvidenceObjectCreateIn,
+    AbAssignIn,
+    AbOutcomeIn,
+    AbReportIn,
     ExperienceCreateIn,
     MetaControllerIn,
     StrategyLogIn,
@@ -549,6 +552,8 @@ def create_app(
             emotion_rerank=body.emotion_rerank,
             semantic_assist=bool(body.semantic_assist),
             semantic_weight=float(body.semantic_weight),
+            ab_experiment=bool(body.ab_experiment),
+            ab_subject_key=str(body.ab_subject_key or ""),
             token_budget=body.token_budget,
             types=body.types,
         )
@@ -1124,7 +1129,59 @@ def create_app(
         from cognitive_memory.strategy.metacontroller import schedule
 
         _ = access
-        return schedule(service.db, action=body.action, strategy_id=body.strategy_id)
+        return schedule(
+            service.db,
+            action=body.action,
+            strategy_id=body.strategy_id,
+            ab_experiment=bool(body.ab_experiment),
+        )
+
+    @app.post(f"{pref}/ab/assign")
+    def ab_assign(
+        body: AbAssignIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="ab.assign")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import assign_arm
+
+        _ = access
+        return assign_arm(
+            service.db,
+            body.experiment_id,
+            subject_key=body.subject_key,
+            context=body.context,
+        )
+
+    @app.post(f"{pref}/ab/outcome")
+    def ab_outcome(
+        body: AbOutcomeIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="ab.outcome")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import record_outcome
+
+        _ = access
+        return record_outcome(
+            service.db,
+            body.exposure_id,
+            reward=body.reward,
+            label=body.label,
+            detail=body.detail,
+        )
+
+    @app.post(f"{pref}/ab/report")
+    def ab_report(
+        body: AbReportIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="ab.report")
+        ),
+    ) -> dict[str, Any]:
+        from cognitive_memory.governance.ab_experiment import report
+
+        _ = access
+        return report(service.db, body.experiment_id, limit=body.limit)
 
     @app.get(f"{pref}/schemas")
     def schemas_list(

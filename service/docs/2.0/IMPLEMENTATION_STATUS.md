@@ -11,77 +11,34 @@
 | P1 Semantic Contract Freeze | **COMPLETED** |
 | P1.5 Governance Closure | **COMPLETED** |
 | P2 Claim Vertical Slice | **COMPLETED** |
-| P3 Evidence Objects | **NEAR COMPLETE**（live eval 已通） |
-| P4 Truth Maintenance | **NEAR COMPLETE**（Schema impact + tombstone 级联已接） |
-| P5 Strategy / Experience | **IN PROGRESS**（表 + propensity + 门控 offline eval） |
+| P3 Evidence Objects | **COMPLETED** |
+| P4 Truth Maintenance | **COMPLETED** |
+| P5 Strategy / Experience | **COMPLETED**（online A/B + 有界 MetaController） |
 
-## P2 Claim Vertical Slice — COMPLETED
+## 硬约束（仍生效）
 
-- Claim 表 `009_claims_v1` + ClaimStore + API + S1–S14 + shadow RO
-- JudgmentTrace 接入 propose / same_as / transition / verify / redirect / attach_evidence
-- VerificationRecord 持久化；`confirm`/`Verified` 无静默路径
-- 全量单测 130→137（含 P3 新增）
-- Live shadow：100 样本，atoms 26 / unresolved 74
-- PR：https://github.com/canyueY/dsh-mnemosyne/pull/1
+- 禁止静默 / LLM Verified
+- 禁止生产 DB 回填 / Memory·Bank 重建
+- `confirm` ≠ 授权；Claim forget → tombstone 不硬删
+- Strategy `ACTIVE` / RL train·deploy / A/B 写入需 Capability Gate（默认 LOCKED）
 
-## P3 Evidence Objects — IN PROGRESS
+## P3 Evidence Objects — COMPLETED
 
-### 已完成
+- Evidence objects + independence gate + semantic side-path（assistive only）
+- Live RO eval 报告；online A/B 指标经 `BANDIT_EXPERIMENT`（`013_ab_v1` + `/ab/*`）
 
-- 草案：`docs/2.0/EVIDENCE_OBJECT_DRAFT.md` + `SEMANTIC_SIDEPATH.md`
-- 迁移 `010_evidence_objects_v1`
-- `EvidenceObjectStore` + Verified 前 independence gate
-- Claim attach 物化 `evd_*`；legacy `/evidence` 同步物化
-- 语义旁路：`assist_rerank` / `pool_suggest` / `evaluate_assist`；retrieve 默认 `semantic_assist`
-- `ClaimStore.semantic_suggest` + `POST /claims/semantic-suggest`（永不 Verified）
-- 测试：`test_p3_evidence_objects` + `test_p3_semantic_sidepath`
+## P4 Truth Maintenance — COMPLETED
 
-### 已完成（续）
+- TMS AND/OR + SCC + budget；Schema impact 预览；forget → Claim/Evidence tombstone + TMS OUT
 
-- Live RO eval：`retrieval/live_eval.py` + 报告  
-  `docs/2.0/fixtures/shadow_replay/P3_LIVE_EVAL_REPORT.md`  
-  paraphrase 25 查询：fts_recall_avg=0.80，assist_novel_rate=0.12；evidence 50→partial 50，complete=0
+## P5 Strategy / Experience — COMPLETED
 
-### 未完成
+- `012` Experience/Strategy/StrategyLog；propensity；门控 offline eval
+- 有界 MetaController：`reflect|reevaluate|reevaluate_all|propose_retire|recommend_activate|activate_if_authorized|ab_assign`
+- Online A/B：exposures/outcomes/report；retrieve `ab_experiment` opt-in
+- **永不**在 A/B 或 MetaController 中静默 ACTIVE / Verified
 
-- 语义旁路 online A/B 指标（可选）
-- 合入 PR #1（需确认）
+## 下一步（仓库外）
 
-## P4 Truth Maintenance — NEAR COMPLETE
-
-### 已完成
-
-- 契约：`docs/2.0/contracts/tms.md` + `TMS_DRAFT.md`
-- `tms/`：Justification AND/OR、Tarjan SCC、预算传播、impact preview
-- 迁移 `011_tms_v1` + `TmsStore` 持久化（`get_belief` 跨实例读库）
-- Claim 接线：verify→support；dispute/redirect→invalidate
-- Schema：`analyze_impact` / `impact_of_schema` → TMS 重评预览（`auto_overwrite=false`）
-- R17：`forget_memory` → Claim superseded tombstone + Evidence revoked + TMS OUT（不硬删 Claim）
-- API：`/tms/justifications|propagate|belief/{id}`
-- 测试：`test_p4_*`（11）；全量 **155** passed
-
-### 未完成
-
-- 合入 PR #1（需确认）
-- online A/B（可选）
-
-### 下一步
-
-合入 PR #1；禁止 LLM Verified / 生产回填。
-
-## P5 Strategy / Experience — IN PROGRESS
-
-### 已完成
-
-- 契约：`docs/2.0/contracts/strategy.md` + `STRATEGY_DRAFT.md`
-- 迁移 `012_strategy_v1`：`experiences` / `strategies` / `strategy_logs`
-- `strategy/`：ExperienceStore、StrategyStore、propensity、offline_eval、metacontroller
-- `record_feedback_sample` → 落盘 Experience（仍不训练）
-- ACTIVE / offline eval / RL train+deploy 仍走 Capability Gate（默认 LOCKED）
-- API：`/experiences`、`/strategies*`、`/strategies/propensity`、`/strategies/offline-eval`、`/meta/schedule`
-- 测试：`test_p5_strategy.py`
-
-### 未完成
-
-- online A/B / 完整 MetaController 自治
-- 合入 PR #1（需确认）
+- 合入 PR #1 → `main`
+- 生产解锁 Gate 需外部治理显式操作

@@ -19,8 +19,13 @@
 
 `012_strategy_v1` → `experiences` / `strategies` / `strategy_logs`
 
-## Non-goals
+## Non-goals (still forbidden)
 
-- Online RL policy updates
-- Auto ACTIVE without Gate
-- MetaController full autonomy
+- Online RL policy weight updates
+- Auto ACTIVE without `RL_POLICY_DEPLOYMENT`
+- Unbounded MetaController autonomy
+
+## Completed bounds
+
+- MetaController schedule actions including recommend/retire/batch reevaluate
+- Online A/B metrics under `BANDIT_EXPERIMENT` (`013_ab_v1`)

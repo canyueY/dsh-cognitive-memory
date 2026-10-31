@@ -227,6 +227,9 @@ class RetrieveIn(BaseModel):
     # P3：语义旁路加分；不可作为 Verified / Evidence 替代
     semantic_assist: bool = True
     semantic_weight: float = 0.25
+    # P5：opt-in A/B；需 BANDIT_EXPERIMENT；control 关闭 assist
+    ab_experiment: bool = False
+    ab_subject_key: str = ""
     token_budget: int | None = None
     types: list[MemoryType] | None = None
 
@@ -359,6 +362,25 @@ class StrategyPropensityIn(BaseModel):
 class MetaControllerIn(BaseModel):
     action: str = "reflect"
     strategy_id: str | None = None
+    ab_experiment: bool = False
+
+
+class AbAssignIn(BaseModel):
+    experiment_id: str = "semantic_assist.v1"
+    subject_key: str = ""
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class AbOutcomeIn(BaseModel):
+    exposure_id: str
+    reward: float | None = None
+    label: str = ""
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AbReportIn(BaseModel):
+    experiment_id: str = "semantic_assist.v1"
+    limit: int = 500
 
 
 class SchemaAssimilateIn(BaseModel):

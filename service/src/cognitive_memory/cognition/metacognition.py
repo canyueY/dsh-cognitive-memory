@@ -49,6 +49,16 @@ def reflect(
         if not app.get("exclusions"):
             problems.append(f"missing_exclusions:{sid}")
 
+    strategy_focus: dict[str, Any] | None = None
+    try:
+        from cognitive_memory.strategy.metacontroller import schedule
+
+        strategy_focus = schedule(service.db, action="reflect")
+        if strategy_focus.get("focus_count"):
+            problems.append("strategy_candidates_pending_review")
+    except Exception:
+        strategy_focus = {"ok": False, "detail": "strategy_reflect_unavailable"}
+
     return {
         "ok": True,
         "judgment": judgment,
@@ -60,9 +70,10 @@ def reflect(
             if problems
             else ["no_critical_issues"]
         ),
+        "strategy_focus": strategy_focus,
         "uncertainty": "high" if problems else "medium",
         "generated_at": _now(),
-        "note": "启发式检查；非正式验证证据",
+        "note": "启发式检查；非正式验证证据；不自动 ACTIVE",
     }
 
 
