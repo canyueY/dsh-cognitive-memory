@@ -286,6 +286,20 @@ class ClaimVerifyIn(BaseModel):
     evidence_still_valid: bool = True
 
 
+class EvidenceObjectCreateIn(BaseModel):
+    source_type: str = "observation"
+    source_ref: str = ""
+    bank_id: str = "personal"
+    producer: str = ""
+    content: str = ""
+    role_hint: str = "support"
+    legacy_memory_id: str | None = None
+
+
+class EvidenceIndependenceIn(BaseModel):
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
 class SchemaAssimilateIn(BaseModel):
     memory_ids: list[str] = Field(default_factory=list)
     note: str = ""

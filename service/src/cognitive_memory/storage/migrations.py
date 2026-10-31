@@ -425,6 +425,39 @@ MIGRATIONS: list[tuple[str, str]] = [
           ON verification_records(claim_id, created_at);
         """,
     ),
+    (
+        "010_evidence_objects_v1",
+        """
+        -- P3: first-class Evidence objects (memory_evidence remains legacy bridge)
+        CREATE TABLE IF NOT EXISTS evidences (
+          id TEXT PRIMARY KEY,
+          bank_id TEXT NOT NULL DEFAULT 'personal',
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL DEFAULT '',
+          fingerprint TEXT NOT NULL,
+          provenance_status TEXT NOT NULL DEFAULT 'unknown',
+          independence_key TEXT NOT NULL DEFAULT '',
+          root_source_id TEXT NOT NULL DEFAULT '',
+          producer TEXT NOT NULL DEFAULT '',
+          role_hint TEXT NOT NULL DEFAULT 'support',
+          validation_state TEXT NOT NULL DEFAULT 'unverified',
+          security_json TEXT NOT NULL DEFAULT '{}',
+          chain_json TEXT NOT NULL DEFAULT '[]',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          legacy_memory_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_evidences_fingerprint
+          ON evidences(fingerprint);
+        CREATE INDEX IF NOT EXISTS idx_evidences_source
+          ON evidences(source_type, source_ref);
+        CREATE INDEX IF NOT EXISTS idx_evidences_indep
+          ON evidences(independence_key);
+        CREATE INDEX IF NOT EXISTS idx_evidences_bank
+          ON evidences(bank_id, created_at);
+        """,
+    ),
 ]
 
 

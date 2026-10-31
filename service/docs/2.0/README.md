@@ -2,12 +2,13 @@
 
 **审计提交（远程）：** `c82d47e`（P0）  
 **日期：** 2026-10-31  
-**状态：** P0 / P0.5 / P1 / P1.5 **完成**；P2 Claim 纵向切片进行中。
+**状态：** P0–P2 **完成**；P3 Evidence 对象进行中（PR #1）。
 
 | 文档 | 内容 |
 |---|---|
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | 阶段状态与验收记录 |
 | [CLAIM_TABLE_DRAFT.md](CLAIM_TABLE_DRAFT.md) | P2 Claim 表/索引草案 |
+| [EVIDENCE_OBJECT_DRAFT.md](EVIDENCE_OBJECT_DRAFT.md) | P3 Evidence 对象草案 |
 | [contracts/](contracts/) | P1 语义契约 + schema-governance |
 | [P0_REPOSITORY_AUDIT.md](P0_REPOSITORY_AUDIT.md) | 仓库、对象、测试、数据、性能与主要发现 |
 | [EXISTING_TO_2_0_MAPPING.md](EXISTING_TO_2_0_MAPPING.md) | 现有模块到 2.0 对象/判定域的复用映射 |
@@ -26,10 +27,10 @@
 - **Schema 层是启发式实验层**：不能直接作为 2.0 Knowledge/Claim。
 - ~~Schema mutation 治理旁路~~ → P1.5 已收口为 LearningProposal + `SCHEMA_MUTATION`。
 - P1 已补 Claim/Visibility/Verification/TruthValue 契约测试；旧 122 回归仍只证明 3.0 能力。
-- P2 已建 Claim 表与 ClaimStore；完整 S1–S14 矩阵与 visibility 接线仍待完成。
+- P2 Claim 纵向切片已合入分支；P3 起独立 Evidence 对象（`memory_evidence` 仅过渡）。
 
 ## 建议下一步
 
-1. 完成 P2 Claim 测试矩阵与 visibility fail-closed 接线；
-2. VerificationRecord 持久化对接（禁止 LLM Verified、禁止生产回填）；
-3. 不同时铺开 Knowledge/Strategy/MetaController。
+1. P3：Verified 前强制 independence gate；语义检索旁路评估；
+2. 禁止 LLM Verified、禁止生产回填；
+3. 不同时铺开 Knowledge/Strategy/MetaController / TMS（P4）。

@@ -24,6 +24,8 @@ from cognitive_memory.domain.models import (
     ClaimRedirectIn,
     ClaimTransitionIn,
     ClaimVerifyIn,
+    EvidenceIndependenceIn,
+    EvidenceObjectCreateIn,
     CognitiveChangePlanApplyIn,
     CognitiveChangePlanIn,
     ContextBuildIn,
@@ -355,8 +357,9 @@ def create_app(
     @app.post(f"{pref}/evidence")
     def evidence_attach(body: EvidenceLink, _: None = Depends(require_token)) -> dict[str, Any]:
         from cognitive_memory.evidence import EvidenceAttachIn
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
 
-        return service.attach_evidence(
+        legacy = service.attach_evidence(
             EvidenceAttachIn(
                 memory_id=body.memory_id,
                 observation_id=body.observation_id,
@@ -371,6 +374,68 @@ def create_app(
                 metadata=body.metadata,
             )
         )
+        # P3: also materialize first-class Evidence (never invent observation_id)
+        obj = EvidenceObjectStore(service.db).from_legacy_memory_link(
+            memory_id=body.memory_id,
+            observation_id=body.observation_id,
+            relation=body.relation.value
+            if hasattr(body.relation, "value")
+            else str(body.relation),
+            producer=body.producer or "",
+        )
+        pack = legacy.model_dump(mode="json") if hasattr(legacy, "model_dump") else dict(legacy)
+        pack["evidence_object"] = obj.get("evidence")
+        pack["evidence_object_ok"] = bool(obj.get("ok"))
+        return pack
+
+    @app.post(f"{pref}/evidences")
+    def evidences_create(
+        body: EvidenceObjectCreateIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.write", resource="evidences.create")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        return EvidenceObjectStore(service.db).create(
+            source_type=body.source_type,
+            source_ref=body.source_ref,
+            bank_id=body.bank_id,
+            content_for_fingerprint=body.content,
+            producer=body.producer,
+            role_hint=body.role_hint,
+            legacy_memory_id=body.legacy_memory_id,
+        )
+
+    @app.get(f"{pref}/evidences/{{evidence_id}}")
+    def evidences_get(
+        evidence_id: str,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="evidences.get")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        ev = EvidenceObjectStore(service.db).get(evidence_id)
+        if not ev:
+            raise HTTPException(
+                status_code=404, detail={"code": "not_found", "message": "evidence"}
+            )
+        return {"ok": True, "evidence": ev}
+
+    @app.post(f"{pref}/evidences/independence")
+    def evidences_independence(
+        body: EvidenceIndependenceIn,
+        access: AccessContext = Depends(
+            make_access_dep(permission="memory.read", resource="evidences.independence")
+        ),
+    ) -> dict[str, Any]:
+        _ = access
+        from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+        return EvidenceObjectStore(service.db).independence_conflict(body.evidence_ids)
 
     @app.get(f"{pref}/memories/{{memory_id}}/evidence")
     def evidence_list(memory_id: str, _: None = Depends(require_token)) -> dict[str, Any]:

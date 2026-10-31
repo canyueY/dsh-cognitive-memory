@@ -14,6 +14,7 @@ from cognitive_memory.claims.normalize import normalized_hash
 from cognitive_memory.claims.parser import parse_memory_text
 from cognitive_memory.security.context import SecurityContext
 from cognitive_memory.storage.db import Database
+from cognitive_memory.tracing.service import JudgmentTraceService
 from cognitive_memory.verification.engine import VerificationEngine
 from cognitive_memory.verification.models import VerificationStatus
 from cognitive_memory.verification.persist import PersistentVerificationStore
@@ -36,6 +37,29 @@ class ClaimStore:
         self._life = ClaimLifecycleEngine()
         self._ver_engine = VerificationEngine()
         self._ver_store = PersistentVerificationStore(db)
+        self.traces = JudgmentTraceService()
+
+    def _record_trace(
+        self,
+        judgment_type: str,
+        *,
+        input_refs: list[str] | None = None,
+        output_refs: list[str] | None = None,
+        evidence_refs: list[str] | None = None,
+        reason_codes: list[str] | None = None,
+        governance_critical: bool = False,
+    ) -> str | None:
+        tr = self.traces.record(
+            judgment_type,
+            input_refs=input_refs,
+            output_refs=output_refs,
+            evidence_refs=evidence_refs,
+            reason_codes=reason_codes,
+            algorithm_version="claim.store.v1",
+            rule_version="claim.lifecycle.v1",
+            governance_critical=governance_critical,
+        )
+        return tr.trace_id if tr else None
 
     def propose_from_text(
         self,
@@ -61,12 +85,19 @@ class ClaimStore:
         # same_as: reuse existing non-redirected claim with same hash in bank
         existing = self.find_by_hash(nh, bank_id=bank_id)
         if existing and not existing.get("redirects_to"):
+            tid = self._record_trace(
+                "claim.same_as",
+                input_refs=[source_memory_id or "text"],
+                output_refs=[existing["id"]],
+                reason_codes=["normalized_hash_match"],
+            )
             return {
                 "ok": True,
                 "persisted": False,
                 "same_as": existing["id"],
                 "claim": existing,
                 "ast": ast.model_dump(),
+                "trace_id": tid,
             }
         cid = _new_id()
         now = _now()
@@ -130,6 +161,12 @@ class ClaimStore:
                 ),
             )
         self._life._status[cid] = ClaimLifecycle.PROPOSED
+        tid = self._record_trace(
+            "claim.propose",
+            input_refs=[source_memory_id or "text"],
+            output_refs=[cid],
+            reason_codes=["unresolved"] if ast.is_unresolved() else ["parsed"],
+        )
         return {
             "ok": True,
             "persisted": True,
@@ -137,6 +174,7 @@ class ClaimStore:
             "claim": self.get(cid),
             "ast": ast.model_dump(),
             "unresolved": ast.is_unresolved(),
+            "trace_id": tid,
         }
 
     def get(
@@ -232,9 +270,32 @@ class ClaimStore:
         *,
         role: str = "support",
         independent: bool = False,
+        materialize_evidence_object: bool = True,
+        bank_id: str | None = None,
     ) -> dict[str, Any]:
-        if not self.get(claim_id, follow_redirect=False):
+        claim = self.get(claim_id, follow_redirect=False)
+        if not claim:
             return {"ok": False, "detail": "claim_not_found"}
+        evidence_object_id: str | None = None
+        if materialize_evidence_object and evidence_ref:
+            from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+            estore = EvidenceObjectStore(self.db)
+            # Prefer explicit Evidence id; else treat ref as observation source
+            if str(evidence_ref).startswith("evd_"):
+                existing = estore.get(str(evidence_ref))
+                evidence_object_id = existing["id"] if existing else None
+            else:
+                created = estore.create_from_observation(
+                    str(evidence_ref),
+                    bank_id=bank_id or str(claim.get("bank_id") or "personal"),
+                    role_hint=role,
+                    legacy_memory_id=claim.get("source_memory_id"),
+                )
+                if created.get("ok") and created.get("evidence"):
+                    evidence_object_id = created["evidence"]["id"]
+                    # Link uses first-class evidence id when available
+                    evidence_ref = evidence_object_id
         eid = _new_id("cev")
         now = _now()
         with self.db.transaction() as conn:
@@ -246,7 +307,22 @@ class ClaimStore:
                 """,
                 (eid, claim_id, evidence_ref, role, 1 if independent else 0, now),
             )
-        return {"ok": True, "evidence_id": eid, "claim_id": claim_id, "role": role}
+        tid = self._record_trace(
+            "claim.attach_evidence",
+            input_refs=[claim_id],
+            output_refs=[eid],
+            evidence_refs=[evidence_ref],
+            reason_codes=[role],
+        )
+        return {
+            "ok": True,
+            "link_id": eid,
+            "evidence_id": evidence_object_id or eid,
+            "evidence_ref": evidence_ref,
+            "claim_id": claim_id,
+            "role": role,
+            "trace_id": tid,
+        }
 
     def list_evidence(self, claim_id: str) -> list[dict[str, Any]]:
         with self.db.exclusive() as conn:
@@ -324,12 +400,22 @@ class ClaimStore:
                     now,
                 ),
             )
+        tid = self._record_trace(
+            "claim.transition",
+            input_refs=[claim_id],
+            output_refs=[claim_id],
+            evidence_refs=list(evidence_refs or []),
+            reason_codes=[result.from_status.value, result.to_status.value, reason],
+            governance_critical=result.to_status
+            in (ClaimLifecycle.VERIFIED, ClaimLifecycle.REJECTED, ClaimLifecycle.SUPERSEDED),
+        )
         return {
             "ok": True,
             "claim_id": claim_id,
             "from_status": result.from_status.value,
             "to_status": result.to_status.value,
             "claim": self.get(claim_id),
+            "trace_id": tid,
         }
 
     def submit_verified(
@@ -363,6 +449,27 @@ class ClaimStore:
         )
         if not eng.get("ok"):
             return {"ok": False, "detail": eng.get("error") or "verify_denied", "engine": eng}
+        # P3 gate: multiple evidence refs must not share independence_key
+        if len(evidence_refs) >= 2:
+            from cognitive_memory.evidence.object_store import EvidenceObjectStore
+
+            estore = EvidenceObjectStore(self.db)
+            ev_ids = []
+            for ref in evidence_refs:
+                if str(ref).startswith("evd_"):
+                    ev_ids.append(str(ref))
+                else:
+                    created = estore.create_from_observation(str(ref))
+                    if created.get("ok") and created.get("evidence"):
+                        ev_ids.append(created["evidence"]["id"])
+            indep = estore.independence_conflict(ev_ids)
+            if not indep.get("independent"):
+                return {
+                    "ok": False,
+                    "detail": "evidence_not_independent",
+                    "independence": indep,
+                    "note": "correlated_evidence_blocked_before_verified",
+                }
         from cognitive_memory.verification.models import VerificationRecord
 
         rec_data = eng["record"]
@@ -403,11 +510,20 @@ class ClaimStore:
                 ),
             )
         self._life._status[claim_id] = ClaimLifecycle.VERIFIED
+        tid = self._record_trace(
+            "claim.verify",
+            input_refs=[claim_id],
+            output_refs=[claim_id, record.record_id],
+            evidence_refs=list(evidence_refs),
+            reason_codes=["verified"],
+            governance_critical=True,
+        )
         return {
             "ok": True,
             "claim_id": claim_id,
             "record": record.model_dump(mode="json"),
             "claim": self.get(claim_id),
+            "trace_id": tid,
         }
 
     def redirect(self, source_id: str, target_id: str, *, reason: str = "merge") -> dict[str, Any]:
@@ -446,11 +562,19 @@ class ClaimStore:
                     now,
                 ),
             )
+        tid = self._record_trace(
+            "claim.redirect",
+            input_refs=[source_id],
+            output_refs=[resolved_target],
+            reason_codes=[reason, "superseded"],
+            governance_critical=True,
+        )
         return {
             "ok": True,
             "source_id": source_id,
             "redirects_to": resolved_target,
             "claim": self.get(source_id, follow_redirect=False),
+            "trace_id": tid,
         }
 
     def _row_to_dict(self, row: Any) -> dict[str, Any]:
